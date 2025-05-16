@@ -12,3 +12,4 @@ tests/**
 .history/**
 .idea/**
 node_modules/**
+*.vsix
