@@ -1,0 +1,23 @@
+# Исключаем исходники
+src/**
+*.ts
+tsconfig.json
+
+# Исключаем тесты
+test/**
+tests/**
+*.spec.ts
+*.test.ts
+
+# Прочее
+.vscode/**
+.history/**
+.idea/**
+.vscodeignore
+.gitignore
+.git/**
+node_modules/**
+
+# Системные
+.env
+*.log

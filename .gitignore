@@ -1,0 +1,14 @@
+# Исключаем билд
+out/**
+
+# Исключаем тесты
+test/**
+tests/**
+*.spec.ts
+*.test.ts
+
+# Прочее
+.vscode/**
+.history/**
+.idea/**
+node_modules/**

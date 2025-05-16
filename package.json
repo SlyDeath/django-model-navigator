@@ -1,0 +1,63 @@
+{
+  "name": "django-model-navigator",
+  "displayName": "Django Model Navigator",
+  "description": "Navigation through Django models: Ctrl+Click, tooltips and autocomplete",
+  "version": "1.0.0",
+  "publisher": "SlyDeath",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#0c4b33",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Extension Packs"
+  ],
+  "activationEvents": [
+    "onLanguage:python"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Django Model Navigator",
+      "properties": {
+        "djangoModelNavigator.additionalModelPaths": {
+          "type": "array",
+          "description": "Additional glob path templates for searching for models (for example, **/db_models.py , **/models/*.py). **/models.py it is always used automatically.",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "djangoModelNavigator.updateCache",
+        "title": "Django Model Navigator: Rebuild Model Cache"
+      }
+    ],
+    "languages": [
+      {
+        "id": "python",
+        "aliases": [
+          "Python"
+        ],
+        "extensions": [
+          ".py"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "tsc -p ./"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/vscode": "^1.100.0",
+    "path": "^0.12.7",
+    "typescript": "^5.4.5"
+  }
+}
