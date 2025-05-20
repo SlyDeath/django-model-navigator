@@ -13,3 +13,4 @@ tests/**
 .idea/**
 node_modules/**
 *.vsix
+package-lock.json

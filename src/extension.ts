@@ -70,7 +70,16 @@ export function activate(context: vscode.ExtensionContext) {
 
                 if (charBefore !== '.' && !isKnownModel(word)) return;
 
-                const locations = findAllTargets(word);
+                const chain = getChain(document, position);
+
+                let model;
+                if (chain) {
+                    let modelPart = chain;
+                    if (chain.length > 1) modelPart = modelPart.slice(0, -1);
+                    model = resolveChainModel(document, modelPart, word);
+                }
+
+                const locations = findAllTargets(word, model ?? null);
                 if (locations.length === 0) return;
                 if (locations.length === 1) return locations[0];
 
@@ -96,71 +105,35 @@ export function activate(context: vscode.ExtensionContext) {
                 const wordRange = document.getWordRangeAtPosition(position);
                 if (!wordRange) return null;
 
-                // Определяем всю цепочку (например, employee.profile.google_email)
-                const lineText = document.lineAt(position.line).text;
-                const cursorChar = position.character;
-
-                // Найдём границы слова и точки слева/справа, чтобы получить цепочку
-                // Пример: "employee.profile.google_email"
-                // Мы ищем левый индекс начала цепочки и правый индекс конца цепочки
-                let start = cursorChar;
-                while (start > 0 && /[\w_\.]/.test(lineText[start - 1])) start--;
-                let end = cursorChar;
-                while (end < lineText.length && /[\w_]/.test(lineText[end])) end++;
-
-                const fullChainStr = lineText.slice(start, end);
-                const chain = fullChainStr.split('.');
-
-                if (chain.length === 0) return null;
+                const chain = getChain(document, position);
+                if (!chain) return null;
 
                 const word = document.getText(wordRange).replace(/_set$/, '');
                 // Если цепочка из одного слова — проверим, модель ли это или переменная с моделью, либо это модель
                 if (chain.length === 1 || isKnownModel(word)) {
-                    const variableModel = findVariableModel(document, word);
-                    const modelName = variableModel || (isKnownModel(word) ? word : null);
-                    if (modelName) {
-                        let model = Object.values(modelCache).find(m => m.name.toLowerCase() === modelName.toLowerCase());
-                        if (!model) return null;
-
-                        const fieldsCode = model.fields
-                            .map(field => {
-                                let fieldDef = `    ${field.name} = models.${field.type}()`;
-                                if (field.relatedModel) {
-                                    fieldDef = `    ${field.name} = models.${field.type}('${field.relatedModel}')`;
-                                }
-                                return fieldDef;
-                            })
-                            .join('\n');
-
-                        const md = new vscode.MarkdownString();
-                        md.appendMarkdown(`**Модель**: \`${model.fullName}\`\n\n\`\`\`python\nclass ${model.name}(models.Model):\n${fieldsCode}\n\`\`\``);
-                        return new vscode.Hover(md);
-                    }
-                } else {
-                    // Цепочка из нескольких частей (employee.profile.google_email)
-                    // Разрешаем модель для цепочки без последнего элемента (это поле)
-                    const modelPart = chain.slice(0, -1);
-                    let model = resolveChainModel(document, modelPart, word);
-
-                    if (!model) return null;
-
-                    // Ищем поле
-                    const fieldName = chain[chain.length - 1];
-                    const field = model.fields.find(f => f.name === fieldName);
-                    if (!field) return null;
-
-                    // Формируем hover для поля
-                    const md = new vscode.MarkdownString();
-                    md.appendMarkdown([
-                        `**Тип**: \`models.${field.type}\``,
-                        field.relatedModel ? `**Связанная модель**: \`${field.relatedModel}\`` : '',
-                        field.relatedName ? `**related_name**: \`${field.relatedName}\`` : '',
-                    ].filter(Boolean).join('\n'));
-
-                    return new vscode.Hover(md);
+                    return getModelMD(document, word);
                 }
 
-                return null;
+                // Цепочка из нескольких частей (employee.profile.google_email)
+                // Разрешаем модель для цепочки без последнего элемента (это поле)
+                const modelPart = chain.slice(0, -1);
+                let model = resolveChainModel(document, modelPart, word);
+                if (!model) return null;
+
+                // Ищем поле
+                const fieldName = chain[chain.length - 1];
+                const field = model.fields.find(f => f.name === fieldName);
+                if (!field) return null;
+
+                // Формируем hover для поля
+                const md = new vscode.MarkdownString();
+
+                if (field.relatedModel && isKnownModel(field.relatedModel)) {
+                    return getModelMD(document, field.relatedModel);
+                } else {
+                    md.appendMarkdown(`**Тип**: \`models.${field.type}\``);
+                    return new vscode.Hover(md);
+                }
             }
         })
     );
@@ -170,54 +143,29 @@ export function activate(context: vscode.ExtensionContext) {
             provideCompletionItems(document, position, token, context) {
                 const lineText = document.lineAt(position).text;
                 const prefix = lineText.slice(0, position.character);
-                const dotOnEnd = prefix.lastIndexOf('.') !== -1;
 
                 // Проверяем, есть ли точка перед курсором
                 const dotIndices = [];
                 for (let i = 0; i < prefix.length; i++) {
-                    if (prefix[i] === '.' && i > 0) {
-                        dotIndices.push(i);
-                    }
+                    if (prefix[i] === '.' && i > 0) dotIndices.push(i);
                 }
 
                 if (dotIndices.length === 0) return [];
 
                 // Берём последнюю точку
                 const lastDotIndex = dotIndices[dotIndices.length - 1];
-                let start = lastDotIndex - 1;
 
-                // Двигаемся назад, пока символ подходит для имени (буквы, цифры, _)
-                while (start >= 0) {
-                    const c = prefix[start];
-                    if (/[a-zA-Z0-9_$]/.test(c)) {
-                        start--;
-                    } else if (c === ')' || c === ']') {
-                        let depth = 1;
-                        start--;
-                        while (start >= 0 && depth > 0) {
-                            const ch = prefix[start];
-                            if (ch === ')') depth++;
-                            else if (ch === '(') depth--;
-                            start--;
-                        }
-                    } else {
-                        break;
-                    }
-                }
+                let chain = getChain(document, position);
+                if (!chain) return null;
 
-                // Теперь у нас есть диапазон от start+1 до точки
-                const chainStr = prefix.slice(start + 1, lastDotIndex);
-                // Парсим цепочку
-                let chain = chainStr.split('.').map(s => s.trim()).filter(Boolean);
+                let chainStr = chain.join('.');
+                const dotOnEnd = chainStr.lastIndexOf('.') !== -1;
 
                 // Если в конце набирается текст, то удаляем его
-                if (!dotOnEnd) chain = chain.slice(0, -1);
-
-                // Если цепочка не найдена — выходим
-                if (chain.length === 0) return [];
-
+                if (!chainStr) chainStr = chainStr.slice(0, -1);
+                const modelPart = chain.slice(0, -1);
                 // Разрешаем модель по цепочке
-                const resolvedModel = resolveChainModel(document, chain, '');
+                const resolvedModel = resolveChainModel(document, modelPart, '');
                 if (!resolvedModel) return [];
 
                 // Фильтруем поля по префиксу
@@ -226,17 +174,60 @@ export function activate(context: vscode.ExtensionContext) {
                     .filter(f => f.name.startsWith(fieldPrefix.toLowerCase()))
                     .map(field => {
                         const item = new vscode.CompletionItem(field.name, vscode.CompletionItemKind.Field);
-                        item.detail = `models.${field.type}`;
-                        item.documentation = new vscode.MarkdownString([
-                            `**Тип**: \`models.${field.type}\``,
-                            field.relatedModel ? `**Связанная модель**: \`${field.relatedModel}\`` : '',
-                            field.relatedName ? `**related_name**: \`${field.relatedName}\`` : '',
-                        ].join('\n'));
+                        item.detail = `${field.type}()`;
+                        //item.documentation = new vscode.MarkdownString(`**Тип**: \`${field.type}()\``);
+                        if (field.relatedModel) {
+                            item.detail = `${field.type}('${field.relatedModel}')`;
+                            //item.documentation = new vscode.MarkdownString(`**Тип**: \`${field.type}('${field.relatedModel}')\``);
+                        }
                         return item;
                     });
             }
         }, '.' /* triggerCharacter */)
     );
+}
+
+function getChain(document: vscode.TextDocument, position: vscode.Position) {
+    const lineText = document.lineAt(position.line).text;
+    const cursorChar = position.character;
+
+    // Найдём границы слова и точки слева/справа, чтобы получить цепочку
+    // Пример: "employee.profile.google_email"
+    // Мы ищем левый индекс начала цепочки и правый индекс конца цепочки
+    let start = cursorChar;
+    while (start > 0 && /[\w_\.]/.test(lineText[start - 1])) start--;
+    let end = cursorChar;
+    while (end < lineText.length && /[\w_]/.test(lineText[end])) end++;
+
+    const fullChainStr = lineText.slice(start, end);
+    const chain = fullChainStr.split('.');
+
+    if (chain.length === 0) return null;
+
+    return chain;
+}
+
+function getModelMD(document: vscode.TextDocument, name: string) {
+    const variableModel = findVariableModel(document, name);
+    const modelName = variableModel || (isKnownModel(name) ? name : null);
+    if (modelName) {
+        let model = Object.values(modelCache).find(m => m.name.toLowerCase() === modelName.toLowerCase());
+        if (!model) return null;
+
+        const fieldsCode = model.fields
+            .map(field => {
+                let fieldDef = `    ${field.name} = ${field.type}()`;
+                if (field.relatedModel) {
+                    fieldDef = `    ${field.name} = ${field.type}('${field.relatedModel}')`;
+                }
+                return fieldDef;
+            })
+            .join('\n');
+
+        const md = new vscode.MarkdownString();
+        md.appendMarkdown(`**Модель**: \`${model.fullName}\`\n\n\`\`\`python\nclass ${model.name}(models.Model):\n${fieldsCode}\n\`\`\``);
+        return new vscode.Hover(md);
+    }
 }
 
 // Поиск модели переменной в текущем файле
@@ -250,7 +241,7 @@ function findVariableModel(document: vscode.TextDocument, variableName: string):
     while ((match = variableModelPattern.exec(text)) !== null) {
         const [_, variable, model] = match;
         if (variable === variableName) {
-            matches.push({variable, model, index: match.index});
+            matches.push({ variable, model, index: match.index });
         }
     }
     if (matches.length === 0) return null;
@@ -264,37 +255,59 @@ function resolveChainModel(document: vscode.TextDocument, chain: string[], word:
     if (chain.length === 0) return null;
 
     const models = Object.values(modelCache);
-
     // Если цепочка из одного элемента — ищем сразу
     if (chain.length === 1) {
         return models.find(m => m.name.toLowerCase() === chain[0].toLowerCase()) || null;
     }
 
-    // Ищем модель по последнему элементу цепочки
-    const modelName = chain.at(-1);
-    const currentModel = models.find(m => m.name.toLowerCase() === modelName?.toLowerCase());
+    const lastWord = chain.at(-1);
+
+    // Если не нашёл по первому модель, то найти её через родителя
+    let currentModel = null;
+    for (let i = chain.length - 1; i >= 0; i--) {
+        const modelName = chain[i];
+        currentModel = models.find(m => m.name.toLowerCase() === modelName.toLowerCase());
+        if (currentModel) break;
+    }
     if (!currentModel) return null;
 
-    // Для автокомплита
-    if (word === '') return currentModel;
-
     // Если есть поле с нужным именем — возвращаем модель
-    const hasField = currentModel.fields.some(f => f.name === word);
+    let hasField = currentModel.fields.some(f => f.name === word || f.name === lastWord);
+    if (hasField && word) return currentModel;
+
+    // Для автокомплита, если имя поля отличается от имени модели
+    if (hasField && !word) {
+        const chainedModel = currentModel.fields.find(
+            el => el.name === lastWord && el.relatedModel
+        )?.relatedModel;
+
+        if (chainedModel) {
+            return models.find(m => m.name.toLowerCase() === chainedModel);
+        }
+
+        return null;
+    }
+
+    // Для автокомплита
+    if (!word) return currentModel;
+
     return hasField ? currentModel : null;
 }
 
 // Проверяет модель
 function isKnownModel(name: string): boolean {
-    return Object.values(modelCache).some(m => m.name.toLowerCase() === name) || builtInDjangoModels.includes(name);
+    return Object.values(modelCache).some(m => m.name.toLowerCase() === name.toLowerCase()) || builtInDjangoModels.includes(name);
 }
 
-function findAllTargets(word: string): vscode.Location[] {
-    const candidates: vscode.Location[] = [];
+function findAllTargets(word: string, wordModel: ModelInfo | null): vscode.Location[] {
+    const modelsCandidates: vscode.Location[] = [];
+    const fieldsCandidates: vscode.Location[] = [];
+
     for (const model of Object.values(modelCache)) {
-        const cleanWord = word.replace(/_set$/, '');
+        const cleanWord = word.toLowerCase().replace(/_set$/, '');
 
         if (model.name.toLowerCase() === cleanWord) {
-            candidates.push(
+            modelsCandidates.push(
                 new vscode.Location(
                     vscode.Uri.file(model.filePath),
                     new vscode.Position(model.line, 0)
@@ -302,28 +315,77 @@ function findAllTargets(word: string): vscode.Location[] {
             );
         }
 
-        for (const field of model.fields) {
-            if (field.name === cleanWord) {
-                const fileContent = fs.readFileSync(model.filePath, 'utf-8');
-                const lines = fileContent.split('\n');
+        if (wordModel) {
+            const fileContent = fs.readFileSync(wordModel.filePath, 'utf-8');
+            const lines = fileContent.split('\n');
 
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-                    const match = line.trim().match(/^\s*(\w+)\s*=\s*models\.\w+\(/);
-                    if (match && match[1] === field.name) {
-                        candidates.push(
+            for (let i = 0; i < lines.length; i++) {
+                if (fieldsCandidates.length) break;
+
+                const line = lines[i].trim();
+                const classMatch = line.match(/^class\s+(\w+)\(([^)]*)\)/);
+                if (!classMatch) continue;
+
+                const [, className, baseList] = classMatch;
+                const bases = baseList.split(',').map(b => b.trim());
+
+                const isModel = bases.some(base =>
+                    !(
+                        base.startsWith('models.TextChoices') ||
+                        base.startsWith('models.IntegerChoices')
+                    )
+                    &&
+                    (
+                        base === 'models.Model' ||
+                        base.startsWith('models.') ||
+                        builtInDjangoModels.includes(base)
+                    )
+                );
+
+                if (!isModel) continue;
+                if (wordModel.name !== className) continue;
+
+                for (let j = i + 1; j < lines.length; j++) {
+                    const l = lines[j];
+                    if (!l.trim() || l.startsWith('#')) continue;
+                    if (l.startsWith('class ')) break;
+
+                    const fieldMatch = l.match(/(\w+)\s*=\s*models\.(\w+)\(([^)]*)\)/);
+                    if (fieldMatch && (fieldMatch[1] === word)) {
+                        fieldsCandidates.push(
                             new vscode.Location(
-                                vscode.Uri.file(model.filePath),
-                                new vscode.Position(i, 0)
+                                vscode.Uri.file(wordModel.filePath),
+                                new vscode.Position(j, 0)
                             )
                         );
+                        break;
+                    }
+                }
+            }
+        } else {
+            for (const field of model.fields) {
+                if (field.name === cleanWord) {
+                    const fileContent = fs.readFileSync(model.filePath, 'utf-8');
+                    const lines = fileContent.split('\n');
+
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i];
+                        const match = line.trim().match(/^\s*(\w+)\s*=\s*models\.\w+\(/);
+                        if (match && (match[1] === field.name)) {
+                            fieldsCandidates.push(
+                                new vscode.Location(
+                                    vscode.Uri.file(model.filePath),
+                                    new vscode.Position(i, 0)
+                                )
+                            );
+                        }
                     }
                 }
             }
         }
     }
 
-    return candidates;
+    return [...modelsCandidates, ...fieldsCandidates];
 }
 
 async function scanWorkspaceForModels(): Promise<Record<string, ModelInfo>> {
@@ -379,10 +441,18 @@ async function scanWorkspaceForModels(): Promise<Record<string, ModelInfo>> {
             const bases = baseList.split(',').map(b => b.trim());
 
             const isModel = bases.some(base =>
-                base === 'models.Model' ||
-                base.startsWith('models.') ||
-                builtInDjangoModels.includes(base)
+                !(
+                    base.startsWith('models.TextChoices') ||
+                    base.startsWith('models.IntegerChoices')
+                )
+                &&
+                (
+                    base === 'models.Model' ||
+                    base.startsWith('models.') ||
+                    builtInDjangoModels.includes(base)
+                )
             );
+
             if (!isModel) continue;
 
             const fullName = `${folderName}.models.${className}`;
@@ -396,12 +466,12 @@ async function scanWorkspaceForModels(): Promise<Record<string, ModelInfo>> {
                 const fieldMatch = l.match(/(\w+)\s*=\s*models\.(\w+)\(([^)]*)\)/);
                 if (fieldMatch) {
                     const [_, fname, ftype, args] = fieldMatch;
-                    let relatedModel;
-                    let relatedName: string | null | undefined = undefined;
+                    let relatedModel: string | null | undefined = undefined,
+                        relatedName: string | null | undefined = undefined;
 
                     if (["ForeignKey", "OneToOneField", "ManyToManyField"].includes(ftype)) {
-                        const modelMatch = args.match(/['"](\w+)['"]/);
-                        if (modelMatch) relatedModel = modelMatch[1];
+                        const modelMatch = args.match(/^(\w+),/);
+                        if (modelMatch) relatedModel = modelMatch[1].toLowerCase();
 
                         const relatedNameMatch = args.match(/related_name\s*=\s*['"]([\w_]+)['"]/);
                         if (relatedNameMatch) {
@@ -411,7 +481,7 @@ async function scanWorkspaceForModels(): Promise<Record<string, ModelInfo>> {
                         }
                     }
 
-                    fields.push({name: fname, type: ftype, relatedModel, relatedName});
+                    fields.push({ name: fname, type: ftype, relatedModel, relatedName });
                 }
             }
 
@@ -467,7 +537,7 @@ async function scanWorkspaceForModels(): Promise<Record<string, ModelInfo>> {
             otherModel.fields.forEach(field => {
                 if (["ForeignKey", "OneToOneField", "ManyToManyField"].includes(field.type)) {
                     if (field.name === model.name.toLowerCase()) {
-                        model.fields.push({name: otherModel.name.toLowerCase(), type: field.type});
+                        model.fields.push({ name: otherModel.name.toLowerCase(), type: field.type });
                     }
                 }
             });
