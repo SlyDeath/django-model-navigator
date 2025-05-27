@@ -59,6 +59,39 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
+        vscode.commands.registerCommand('djangoModelNavigator.gotoDefinition', async (args) => {
+            const { locations } = args;
+            if (!locations || locations.length === 0) return;
+
+            if (locations.length === 1) {
+                await vscode.commands.executeCommand('vscode.open', locations[0].uri);
+                const editor = await vscode.window.showTextDocument(locations[0].uri);
+                editor.revealRange(new vscode.Range(locations[0].range.start, locations[0].range.start));
+            } else {
+                interface QuickPickLocationItem extends vscode.QuickPickItem {
+                    location: vscode.Location;
+                }
+
+                const items: QuickPickLocationItem[] = locations.map((loc: vscode.Location) => ({
+                    label: path.basename(loc.uri.fsPath),
+                    description: `${loc.uri.fsPath}:${loc.range.start.line + 1}`,
+                    location: loc
+                }));
+
+                const selected = await vscode.window.showQuickPick<typeof items[0]>(items, {
+                    placeHolder: 'Select a definition'
+                });
+
+                if (selected && selected.location) {
+                    await vscode.commands.executeCommand('vscode.open', selected.location.uri);
+                    const editor = await vscode.window.showTextDocument(selected.location.uri);
+                    editor.revealRange(new vscode.Range(selected.location.range.start, selected.location.range.start));
+                }
+            }
+        })
+    );
+
+    context.subscriptions.push(
         vscode.languages.registerDefinitionProvider('python', {
             async provideDefinition(document, position, token) {
                 const wordRange = document.getWordRangeAtPosition(position);
@@ -83,18 +116,15 @@ export function activate(context: vscode.ExtensionContext) {
                 if (locations.length === 0) return;
                 if (locations.length === 1) return locations[0];
 
-                const selected = await vscode.window.showQuickPick(
-                    locations.map(loc => ({
-                        label: path.basename(loc.uri.fsPath),
-                        description: `${loc.uri.fsPath}:${loc.range.start.line + 1}`,
-                        location: loc
-                    })),
-                    {
-                        placeHolder: 'Select a definition'
+                return locations.map(location => ({
+                    range: location.range,
+                    uri: location.uri,
+                    command: {
+                        title: 'Go to definition',
+                        command: 'djangoModelNavigator.gotoDefinition',
+                        arguments: [{ locations }]
                     }
-                );
-
-                return selected?.location;
+                }));
             }
         })
     );
