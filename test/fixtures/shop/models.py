@@ -17,8 +17,8 @@ class TimeStampedModel(models.Model):
 
 
 class Status(models.TextChoices):
-    NEW = "new", "Новый"
-    DONE = "done", "Готов"
+    NEW = "new", "New"
+    DONE = "done", "Done"
 
 
 class ClientQuerySet(models.QuerySet):
@@ -31,7 +31,7 @@ class Client(TimeStampedModel):
     objects = ClientQuerySet.as_manager()
 
     name = CharField(max_length=255)  # A field constructor imported without the models prefix
-    note = models.TextField(help_text="Текст со скобкой ( и символом #")
+    note = models.TextField(help_text="Text with a bracket ( and a # sign")
     parent = models.ForeignKey("self", on_delete=models.CASCADE, related_name="children")
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,

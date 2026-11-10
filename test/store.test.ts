@@ -38,9 +38,9 @@ export async function run(): Promise<void> {
 
     fs.mkdirSync(appDir, { recursive: true });
 
-    group('обновление кэша');
+    group('cache updates');
 
-    await testAsync('новый файл моделей попадает в кэш', async () => {
+    await testAsync('a new models file is cached', async () => {
         fs.writeFileSync(
             modelsFile,
             [
@@ -59,10 +59,10 @@ export async function run(): Promise<void> {
 
         const labels = completions(['draft = Draft.objects.first()', 'print(draft.)'], 'draft.');
 
-        assert.ok(labels.includes('title'), `нет поля title: ${labels.join(', ')}`);
+        assert.ok(labels.includes('title'), `missing field title: ${labels.join(', ')}`);
     });
 
-    await testAsync('сохранение файла обновляет только его', async () => {
+    await testAsync('saving a file updates only that file', async () => {
         fs.writeFileSync(
             modelsFile,
             [
@@ -81,15 +81,15 @@ export async function run(): Promise<void> {
 
         const labels = completions(['draft = Draft.objects.first()', 'print(draft.)'], 'draft.');
 
-        assert.ok(labels.includes('summary'), `нет нового поля: ${labels.join(', ')}`);
+        assert.ok(labels.includes('summary'), `missing new field: ${labels.join(', ')}`);
 
         // Verify that a partial update preserves models from other files
         const other = completions(['client = Client.objects.first()', 'print(client.)'], 'client.');
 
-        assert.ok(other.includes('name'), 'потеряны модели из других файлов');
+        assert.ok(other.includes('name'), 'models from other files were lost');
     });
 
-    await testAsync('удаление файла убирает модель из кэша', async () => {
+    await testAsync('deleting a file removes its model from the cache', async () => {
         fs.rmSync(modelsFile);
 
         stub.setWorkspaceFiles(stub.workspaceFiles.filter(file => file !== modelsFile));
@@ -99,10 +99,10 @@ export async function run(): Promise<void> {
 
         const labels = completions(['draft = Draft.objects.first()', 'print(draft.)'], 'draft.');
 
-        assert.deepStrictEqual(labels, [], 'модель осталась в кэше');
+        assert.deepStrictEqual(labels, [], 'model is still cached');
     });
 
-    await testAsync('изменение настроек пересканирует workspace', async () => {
+    await testAsync('changing settings rescans the workspace', async () => {
         stub.configValues['hoverMaxFields'] = 5;
         stub.emitters.config.fire({ affectsConfiguration: () => true });
 
@@ -110,10 +110,10 @@ export async function run(): Promise<void> {
 
         const labels = completions(['client = Client.objects.first()', 'print(client.)'], 'client.');
 
-        assert.ok(labels.includes('name'), 'кэш не восстановился после пересканирования');
+        assert.ok(labels.includes('name'), 'cache was not restored after the rescan');
     });
 
-    await testAsync('панель показывает сканирование и обновляет дерево после создания и удаления модели', async () => {
+    await testAsync('panel shows scanning and refreshes tree on model add/delete', async () => {
         const tree = stub.registered.trees.get('djangoModelNavigator.models');
         const overview = stub.registered.trees.get('djangoModelNavigator.overview');
 
@@ -150,7 +150,7 @@ export async function run(): Promise<void> {
             stub.workspace.fs.readFile = originalRead;
             await scan;
             assert.strictEqual(phase(), 'Ready');
-            assert.ok(changes > 0, 'дерево не уведомлено о новом индексе');
+            assert.ok(changes > 0, 'tree was not notified about the new index');
             const app = tree.getChildren().find(node => tree.getTreeItem(node).label === 'temp_app');
 
             assert.ok(app);
@@ -169,7 +169,7 @@ export async function run(): Promise<void> {
         }
     });
 
-    await testAsync('добавление модели сбрасывает отрицательный кеш неизменённого документа', async () => {
+    await testAsync('a new model resets the negative cache of an unchanged document', async () => {
         const document = new stub.TextDocument(path.join(root, 'views.py'),
             'entry = FreshEntry.objects.first()\nentry.');
         const labels = () => {
@@ -184,10 +184,10 @@ export async function run(): Promise<void> {
         stub.setWorkspaceFiles([...stub.workspaceFiles, modelsFile]);
         await stub.commands.executeCommand('djangoModelNavigator.updateCache');
 
-        assert.ok(labels().includes('title'), 'отрицательный кеш пережил обновление индекса');
+        assert.ok(labels().includes('title'), 'negative cache survived the index update');
     });
 
-    await testAsync('дополнительный glob обновляет индекс при создании и сохранении нового файла', async () => {
+    await testAsync('an extra glob reindexes a new file on create and save', async () => {
         const extraFile = path.join(appDir, 'order_models.py');
         const previousFiles = [...stub.workspaceFiles];
 
@@ -201,7 +201,7 @@ export async function run(): Promise<void> {
             stub.emitters.create.fire(stub.Uri.file(extraFile));
             await wait(DEBOUNCE_WAIT_MS);
             assert.ok(completions(['row = Order.objects.first()', 'row.'], 'row.').includes('number'),
-                'новый файл по glob не проиндексирован');
+                'new file matched by the glob was not indexed');
 
             fs.writeFileSync(extraFile, 'class Order(models.Model):\n    changed = models.CharField()');
             stub.emitters.save.fire(stub.TextDocument.fromFile(extraFile));
@@ -214,7 +214,7 @@ export async function run(): Promise<void> {
         }
     });
 
-    await testAsync('перекрывающиеся сохранения разных файлов сохраняют оба обновления', async () => {
+    await testAsync('overlapping saves of different files keep both updates', async () => {
         const otherFile = path.join(root, 'other', 'models.py');
         const previousFiles = [...stub.workspaceFiles];
         const originalRead = stub.workspace.fs.readFile;
@@ -238,7 +238,7 @@ export async function run(): Promise<void> {
             };
             stub.emitters.save.fire(stub.TextDocument.fromFile(modelsFile));
             await wait(DEBOUNCE_WAIT_MS);
-            assert.ok(release, 'чтение первого файла не началось');
+            assert.ok(release, 'reading the first file did not start');
             stub.emitters.save.fire(stub.TextDocument.fromFile(otherFile));
             await wait(DEBOUNCE_WAIT_MS);
             release();
@@ -246,7 +246,7 @@ export async function run(): Promise<void> {
             await wait(DEBOUNCE_WAIT_MS);
 
             assert.ok(completions(['row = Alpha.objects.first()', 'row.'], 'row.').includes('new_alpha'),
-                'обновление первого файла потеряно');
+                'update of the first file was lost');
             assert.ok(completions(['row = Beta.objects.first()', 'row.'], 'row.').includes('new_beta'));
         } finally {
             release?.();
@@ -260,7 +260,7 @@ export async function run(): Promise<void> {
 
     group('deactivate');
 
-    await testAsync('деактивация отбрасывает результат незавершённого сканирования', async () => {
+    await testAsync('deactivation discards the result of an unfinished scan', async () => {
         const originalRead = stub.workspace.fs.readFile;
         let release: (bytes: Buffer) => void = () => undefined;
         let started: () => void = () => undefined;
@@ -278,7 +278,7 @@ export async function run(): Promise<void> {
             await reading;
             subscriptions.forEach(item => item.dispose());
             extensionModule.deactivate();
-            assert.strictEqual(stub.registered.trees.size, 0, 'деревья не сняты с регистрации');
+            assert.strictEqual(stub.registered.trees.size, 0, 'trees were not unregistered');
             release(Buffer.from('class LateEntry(models.Model):\n    title = models.CharField()'));
             await scan;
 

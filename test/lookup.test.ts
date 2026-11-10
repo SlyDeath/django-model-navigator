@@ -15,7 +15,7 @@ function parse(code: string) {
     const lines = code.split('\n');
     const line = lines.findIndex(text => text.includes('|'));
 
-    assert.ok(line >= 0, 'в коде нет маркера курсора |');
+    assert.ok(line >= 0, 'the code has no | cursor marker');
 
     const character = lines[line].indexOf('|');
 
@@ -26,7 +26,7 @@ function parse(code: string) {
 
 group('getLookupContext');
 
-test('имя kwarg внутри filter распознаётся', () => {
+test('a kwarg name inside filter is recognized', () => {
     const context = parse('Review.objects.filter(client__name|=1)');
 
     assert.ok(context);
@@ -37,28 +37,28 @@ test('имя kwarg внутри filter распознаётся', () => {
     assert.strictEqual(context.inString, false);
 });
 
-test('курсор на первом сегменте пути', () => {
+test('cursor on the first path segment', () => {
     const context = parse('Review.objects.filter(cli|ent__name=1)');
 
     assert.strictEqual(context?.index, 0);
     assert.deepStrictEqual(context?.segments, ['client', 'name']);
 });
 
-test('пустой сегмент после двойного подчёркивания', () => {
+test('an empty segment after a double underscore', () => {
     const context = parse('Review.objects.filter(client__|)');
 
     assert.strictEqual(context?.index, 1);
     assert.deepStrictEqual(context?.segments, ['client', '']);
 });
 
-test('начало сегмента указывает на его первый символ', () => {
+test('the segment start points to its first character', () => {
     const code = 'Review.objects.filter(client__na|me=1)';
     const context = parse(code);
 
     assert.strictEqual(context?.segmentStart, code.indexOf('client__') + 'client__'.length);
 });
 
-test('строковый аргумент order_by с минусом', () => {
+test('an order_by string argument with a minus', () => {
     const context = parse('Review.objects.order_by("-client__nam|e")');
 
     assert.ok(context?.inString);
@@ -66,7 +66,7 @@ test('строковый аргумент order_by с минусом', () => {
     assert.strictEqual(context?.index, 1);
 });
 
-test('многострочный вызов', () => {
+test('a multiline call', () => {
     const context = parse(
         [
             'Review.objects.filter(',
@@ -80,35 +80,35 @@ test('многострочный вызов', () => {
     assert.strictEqual(context?.calls[0].callee, 'filter');
 });
 
-test('цепочка после закрытого вызова не теряет модель', () => {
+test('a chain after a closed call keeps the model', () => {
     const context = parse('Review.objects.filter(text="a").exclude(client__nam|e="b")');
 
     assert.strictEqual(context?.calls[0].callee, 'exclude');
     assert.deepStrictEqual(context?.calls[0].receiver, ['Review', 'objects', 'filter']);
 });
 
-test('Q внутри filter отдаёт оба вызова', () => {
+test('Q inside filter yields both calls', () => {
     const context = parse('Review.objects.filter(Q(client__nam|e="b"))');
 
     assert.strictEqual(context?.calls[0].callee, 'Q');
     assert.strictEqual(context?.calls[1].callee, 'filter');
 });
 
-test('значение аргумента не считается lookup-путём', () => {
+test('an argument value is not treated as a lookup path', () => {
     assert.strictEqual(parse('Review.objects.filter(text=client.nam|e)'), null);
 });
 
-test('вне скобок контекста нет', () => {
+test('there is no context outside parentheses', () => {
     assert.strictEqual(parse('client.nam|e'), null);
 });
 
-test('комментарий не открывает вызов', () => {
+test('a comment does not open a call', () => {
     assert.strictEqual(parse('x = 1  # filter(client__nam|e)'), null);
 });
 
 group('stripQuerysetTokens');
 
-test('служебные имена отбрасываются с конца', () => {
+test('service names are dropped from the end', () => {
     assert.deepStrictEqual(
         stripQuerysetTokens(['Review', 'objects', 'filter', 'exclude']),
         ['Review']
@@ -118,12 +118,12 @@ test('служебные имена отбрасываются с конца', (
 
 group('readChainForward');
 
-test('цепочка читается до первого постороннего символа', () => {
+test('the chain is read up to the first unrelated character', () => {
     assert.deepStrictEqual(readChainForward('site.employees.all()'), ['site', 'employees', 'all']);
     assert.deepStrictEqual(readChainForward('staff:\n    print(x)'), ['staff']);
 });
 
-test('аргументы вызова и индексы пропускаются', () => {
+test('call arguments and indexes are skipped', () => {
     assert.deepStrictEqual(
         readChainForward('Site.objects.filter(name="a, b").first()'),
         ['Site', 'objects', 'filter', 'first']
@@ -131,16 +131,16 @@ test('аргументы вызова и индексы пропускаются
     assert.deepStrictEqual(readChainForward('rows[0].client'), ['rows', 'client']);
 });
 
-test('ведущие скобки и пробелы не мешают', () => {
+test('leading parentheses and spaces do not interfere', () => {
     assert.deepStrictEqual(readChainForward('  ( Site.objects.all()'), ['Site', 'objects', 'all']);
 });
 
 group('readCallArguments');
 
-test('аргументы вызова по имени', () => {
+test('call arguments by name', () => {
     assert.strictEqual(readCallArguments('sorted(sites, key=f)'), 'sites, key=f');
 });
 
-test('у вызова метода цепочки аргументы не берутся', () => {
+test('arguments are not taken from a chained method call', () => {
     assert.strictEqual(readCallArguments('site.employees.all()'), null);
 });

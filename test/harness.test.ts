@@ -8,7 +8,7 @@ import * as path from 'path';
 
 import { group, test } from './harness';
 
-group('тестовый раннер');
+group('test runner');
 
 /** Run a suite promise through the harness in a separate Node process */
 function exitCodeFor(suite: string): number | null {
@@ -25,15 +25,15 @@ function exitCodeFor(suite: string): number | null {
     }
 }
 
-test('набор, не дошедший до конца, завершается с ошибкой', () => {
+test('a suite that never finishes exits with an error', () => {
     // An awaited promise that never settles empties the event loop without a summary
     assert.notStrictEqual(exitCodeFor('new Promise(() => undefined)'), 0);
 });
 
-test('завершённый набор без ошибок выходит с кодом 0', () => {
+test('a finished suite without failures exits with code 0', () => {
     assert.strictEqual(exitCodeFor('Promise.resolve()'), 0);
 });
 
-test('отклонённый набор завершается с ошибкой', () => {
+test('a rejected suite exits with an error', () => {
     assert.notStrictEqual(exitCodeFor('Promise.reject(new Error("broken"))'), 0);
 });

@@ -60,7 +60,7 @@ export function graphViolations(sources: Record<string, string>): string[] {
         const allowed = ALLOWED[name];
 
         if (!allowed) {
-            violations.push(`${name}: модуля нет в графе`);
+            violations.push(`${name}: module is not in the graph`);
             continue;
         }
 
@@ -89,28 +89,28 @@ export function readSources(dir = SRC, prefix = ''): Record<string, string> {
     return sources;
 }
 
-group('architecture: граф модулей');
+group('architecture: module graph');
 
-test('импорты src/ соответствуют графу', () => {
+test('src/ imports follow the graph', () => {
     assert.deepStrictEqual(graphViolations(readSources()), []);
 });
 
-test('каждый модуль графа существует', () => {
+test('every graph module exists', () => {
     const missing = Object.keys(ALLOWED).filter(name => !fs.existsSync(path.join(SRC, `${name}.ts`)));
 
     assert.deepStrictEqual(missing, []);
 });
 
-test('чистый модуль с импортом vscode считается нарушением', () => {
+test('a pure module importing vscode is a violation', () => {
     const violations = graphViolations({
         parser: "import * as vscode from 'vscode';\nimport { ModelField } from './types';",
         extra: ''
     });
 
-    assert.deepStrictEqual(violations, ['parser -> vscode', 'extra: модуля нет в графе']);
+    assert.deepStrictEqual(violations, ['parser -> vscode', 'extra: module is not in the graph']);
 });
 
-test('require и импорт с расширением тоже учитываются', () => {
+test('require and imports with an extension are counted too', () => {
     assert.deepStrictEqual(
         moduleImports(
             "const fs = require('fs');\nexport { x } from './registry.ts';\n" +
@@ -120,7 +120,7 @@ test('require и импорт с расширением тоже учитыва�
     );
 });
 
-test('динамический импорт, отступ и комментарий с апострофом не скрывают зависимость', () => {
+test('dynamic import, indentation and a comment with an apostrophe do not hide a dependency', () => {
     assert.deepStrictEqual(
         moduleImports(
             "async function load() {\n    return import('vscode');\n}\n" +
@@ -131,7 +131,7 @@ test('динамический импорт, отступ и комментар�
     );
 });
 
-test('файлы во вложенных папках src/ входят в граф под своим путём', () => {
+test('files in nested src/ folders join the graph under their path', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dmn-graph-'));
 
     try {
@@ -142,7 +142,7 @@ test('файлы во вложенных папках src/ входят в гр�
 
         assert.deepStrictEqual(Object.keys(sources).sort(), ['parser', 'sub/parser']);
         assert.deepStrictEqual(graphViolations(sources),
-            ['parser -> sub/parser', 'sub/parser: модуля нет в графе']);
+            ['parser -> sub/parser', 'sub/parser: module is not in the graph']);
     } finally {
         fs.rmSync(dir, { recursive: true, force: true });
     }

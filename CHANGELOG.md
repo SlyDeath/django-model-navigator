@@ -2,141 +2,145 @@
 
 ## 1.4.0
 
-### Новое
+### New
 
-- Панель Django Model Navigator в Activity Bar: состояние индекса, число
-  моделей и файлов, время последнего обновления и дерево приложений, моделей
-  и полей. Из панели можно перейти к объявлению, обновить индекс или открыть лог.
-- Модель результата функции: раньше переменная, полученная из своей или
-  импортированной функции, оставалась без подсказок, теперь модель берётся из
-  аннотации или `return`, включая распаковку кортежа, индекс результата
-  `get_or_create(...)[0]` и queryset, переданный в функцию аргументом.
-  Неоднозначные результаты не угадываются.
+- Django Model Navigator view in the Activity Bar: index status, model and
+  file counts, the time of the last update and a tree of apps, models and
+  fields. From the view you can jump to a declaration, refresh the index or
+  open the log.
+- Function results: a variable returned by a local or imported function used
+  to have no completions; its model is now taken from the function's
+  annotation or `return`, including tuple unpacking, an indexed
+  `get_or_create(...)[0]` result and a queryset passed in as an argument.
+  Ambiguous results are not guessed.
 
-### Точность
+### Accuracy
 
-- Раньше неизвестное значение могло получить поля одноимённой модели, теперь
-  модель не подбирается по совпадению имени: в навигации, подсказках и
-  переходе к полю используется только то, что следует из кода.
-- Импорты учитываются одинаково везде: модели пакета с реэкспортом в
-  `models/__init__.py` находятся, а связь на модель стороннего пакета, например
-  `"taggit.Tag"`, больше не подменяется одноимённой моделью проекта.
-- В `filter()`, `values()` и `order_by()` обратные связи называются как в
-  Django: `review__text`, а не `review_set__text`; `prefetch_related()` и
-  `Prefetch()` по-прежнему используют `review_set`.
-- Поля внутри `Q`, `F`, агрегатов и `Prefetch` относятся к внешнему queryset,
-  в том числе в форме `models.Q(...)`; запрос, сохранённый в переменную после
-  `values()`, сохраняет подсказки в следующих вызовах.
-- Значения `values()`, `values_list()`, `aggregate()` и `update()` больше не
-  считаются экземплярами модели.
-- Наследование: поля абстрактных баз разрешаются в приложении наследника, а
-  связи конкретного родителя и его proxy — в приложении родителя; наследник
-  больше не добавляет ложный обратный аксессор вроде `restaurant_set`.
-- Пользовательская модель: стандартный пользователь определяется как
-  `auth.User`, своя модель находится и через промежуточную абстрактную базу,
-  а её proxy или наследник не выдаются за `AUTH_USER_MODEL`. Встроенные
-  `groups` и `user_permissions` дают аксессор `user_set`, `LogEntry.user`
-  указывает на модель пользователя проекта.
-- Разбор Python: многострочные `return` и сигнатуры, вложенные функции,
-  комментарии, строки и docstring больше не искажают тип переменной, первичный
-  ключ и состав полей.
+- An unknown value could previously get the fields of a same-named model; a
+  model is no longer picked by a matching name, and navigation, completion
+  and go to field only use what follows from the code.
+- Imports are resolved the same way everywhere: models re-exported from a
+  `models/__init__.py` package are found, and a relation to a third-party
+  model such as `"taggit.Tag"` is no longer replaced by a same-named project
+  model.
+- In `filter()`, `values()` and `order_by()` reverse relations are named the
+  way Django expects: `review__text`, not `review_set__text`;
+  `prefetch_related()` and `Prefetch()` still use `review_set`.
+- Fields inside `Q`, `F`, aggregates and `Prefetch` belong to the outer
+  queryset, including the `models.Q(...)` form; a queryset stored in a
+  variable after `values()` keeps its completions in later calls.
+- Results of `values()`, `values_list()`, `aggregate()` and `update()` are no
+  longer treated as model instances.
+- Inheritance: fields of abstract bases resolve in the child's app, while
+  relations of a concrete parent and its proxy resolve in the parent's app;
+  a child no longer adds a bogus reverse accessor such as `restaurant_set`.
+- User model: the default user resolves to the concrete `auth.User`, a custom
+  user model is found through an intermediate abstract base, and its proxy
+  or subclass is never taken for `AUTH_USER_MODEL`. The built-in `groups`
+  and `user_permissions` provide the `user_set` accessor, and `LogEntry.user`
+  points to the project's user model.
+- Python parsing: multiline `return` statements and signatures, nested
+  functions, comments, strings and docstrings no longer distort variable
+  types, primary keys or the set of fields.
 
-### Скорость
+### Performance
 
-- Неизменённые документы повторно не разбираются, первое наведение не ищет
-  файл импорта по всему проекту, а импортированные помощники читаются с диска
-  без открытия их в редакторе и без лишней работы других расширений.
-- Очень длинные строки в коде больше не замедляют разбор: раньше подготовленный
-  файл мог надолго занять редактор.
+- Unchanged documents are not parsed again, the first hover no longer
+  searches the whole project for an imported file, and imported helpers are
+  read from disk without opening them in the editor or triggering work in
+  other extensions.
+- Very long lines no longer slow down parsing; a crafted file used to keep
+  the editor busy for a long time.
 
-### Обновление индекса
+### Index updates
 
-- Новые файлы по дополнительным шаблонам попадают в индекс автоматически,
-  одновременные изменения файлов не теряются, а несохранённые правки и
-  изменения помощников на диске сразу учитываются в подсказках.
-- Отключение `enableCodeLens` сразу убирает показанные лендзы.
-- Debug-лог показывает время готовности подсказки и разбивку его по этапам.
+- New files matching additional patterns are indexed automatically,
+  overlapping file changes are no longer lost, and unsaved edits and helper
+  changes on disk are reflected in completions right away.
+- Turning off `enableCodeLens` removes lenses that are already shown.
+- The debug log shows when a hover is ready and how its time splits between
+  stages.
 
 ## 1.3.2
 
-- Встроенные модели Django (`auth.User`, `Group`, `Permission`, `ContentType`,
-  `Session`, `sites.Site`, `admin.LogEntry`) добавлены в кэш: раньше любая
-  цепочка через `ForeignKey(User)` обрывалась. Своя модель с таким же именем
-  всегда важнее; отключается настройкой `includeBuiltinModels`.
-- Поля наследуются от встроенных `AbstractUser` / `AbstractBaseUser` /
-  `PermissionsMixin`: у своей модели пользователя появились `username`,
-  `email`, `is_staff` и остальные.
-- При нескольких одноимённых моделях учитываются импорты файла и его
-  приложение: в `sites/views_sites.py` имя `Site` больше не разрешается
-  в модель из другого приложения.
-- Присваивание переменной важнее совпадения её имени с именем модели.
+- Built-in Django models (`auth.User`, `Group`, `Permission`, `ContentType`,
+  `Session`, `sites.Site`, `admin.LogEntry`) were added to the cache:
+  previously any chain through `ForeignKey(User)` stopped there. A project
+  model with the same name always wins; turn them off with the
+  `includeBuiltinModels` setting.
+- Fields are inherited from the built-in `AbstractUser` / `AbstractBaseUser` /
+  `PermissionsMixin`: a custom user model now has `username`, `email`,
+  `is_staff` and the rest.
+- With several same-named models, the file's imports and its app are taken
+  into account: in `sites/views_sites.py` the name `Site` no longer resolves
+  to a model from another app.
+- A variable assignment takes precedence over its name matching a model name.
 
 ## 1.3.1
 
-- Модель переменной определяется по цепочке присваиваний: `for x in <выражение>`,
-  `with ... as x`, обёртки `sorted`/`list`/`reversed`, `get_object_or_404`
-  и обращения к связям другой переменной (`staff = site.employees.all()`).
-- Исправлено: `for item in staff:` принималось за аннотацию типа.
+- A variable's model is inferred from its assignment chain: `for x in <expression>`,
+  `with ... as x`, the `sorted`/`list`/`reversed` wrappers, `get_object_or_404`
+  and relations of another variable (`staff = site.employees.all()`).
+- Fixed: `for item in staff:` was taken for a type annotation.
 
 ## 1.3.0
 
-### Исправления
+### Fixes
 
-- Автокомплит теперь работает сразу после точки (`client.`), а не только после первой набранной буквы.
-- Поля с комментарием в конце строки (`name = models.CharField(max_length=10)  # имя`) больше не теряются.
-- Скобки и решётки внутри строк и докстрингов не ломают разбор остального файла.
-- `ForeignKey(to=Client)` больше не определяется как модель с именем `to`.
-- Модели, унаследованные от абстрактных моделей проекта (`class Client(TimeStampedModel)`), попадают в кэш.
-- `models.Manager()`, `models.Q()`, `models.Index()` и подобные вызовы больше не считаются полями.
-- Присваивания внутри методов и вложенных классов больше не считаются полями модели.
-- `class Meta(...)` внутри модели больше не обрывает разбор её полей.
-- Модели с одинаковыми именами в разных приложениях больше не затирают друг друга в кэше.
-- Имя приложения определяется корректно для пакета `app/models/*.py` (раньше получалось `models`).
-- Переход к определению открывает нужное место: курсор встаёт на имя модели или поля, дубликаты вариантов убраны.
-- Нерабочий выбор определения через QuickPick заменён штатным списком вариантов VSCode.
-- `ForeignKey('self')` и `settings.AUTH_USER_MODEL` разрешаются в реальные модели.
-- Обратные связи строятся для self-связей, учитывают `%(class)s` / `%(app_label)s` и не создаются для абстрактных моделей.
-- Для переменной выбирается ближайшее присваивание выше курсора, а не последнее подошедшее по списку шаблонов.
-- Output Channel и таймер пересканирования корректно освобождаются при деактивации.
-- Одновременные сканирования больше не могут записать в кэш устаревший результат.
-- Убрано переопределение языка `python` в `contributes.languages`, исправлена категория расширения в Marketplace.
+- Completion now works right after a dot (`client.`), not only after the first typed letter.
+- Fields followed by a trailing comment (`name = models.CharField(max_length=10)  # name`) are no longer lost.
+- Brackets and hashes inside strings and docstrings no longer break parsing of the rest of the file.
+- `ForeignKey(to=Client)` is no longer resolved as a model named `to`.
+- Models that inherit from abstract project models (`class Client(TimeStampedModel)`) are cached.
+- `models.Manager()`, `models.Q()`, `models.Index()` and similar calls are no longer treated as fields.
+- Assignments inside methods and nested classes are no longer treated as model fields.
+- `class Meta(...)` inside a model no longer cuts off parsing of its fields.
+- Same-named models in different apps no longer overwrite each other in the cache.
+- The app name is detected correctly for an `app/models/*.py` package (it used to be `models`).
+- Go to definition opens the right place: the cursor lands on the model or field name, and duplicate targets are removed.
+- The broken QuickPick for choosing a definition was replaced by the standard VS Code list of targets.
+- `ForeignKey('self')` and `settings.AUTH_USER_MODEL` resolve to real models.
+- Reverse relations are built for self-relations, respect `%(class)s` / `%(app_label)s` and are not created for abstract models.
+- A variable uses the nearest assignment above the cursor, not the last one matched by the list of patterns.
+- The output channel and the rescan timer are released correctly on deactivation.
+- Concurrent scans can no longer write a stale result to the cache.
+- Removed the override of the `python` language in `contributes.languages` and fixed the extension's Marketplace category.
 
-### Новое
+### New
 
-- Настройка `djangoModelNavigator.debug` — подробный лог, команды `Show Log` и `Toggle Debug Logging`.
-- Настройки `excludePatterns`, `additionalFieldTypes`, `userModel`, `hoverMaxFields`, `maxDefinitionResults`, `enableDefinition`, `enableHover`, `enableCompletion`.
-- Изменения настроек применяются без перезагрузки окна.
-- Поддержка `self.field` внутри методов модели.
-- Модель переменной определяется по цепочке присваиваний: разбираются
-  `for x in <выражение>`, `with ... as x`, распаковка кортежа, обёртки
-  `sorted`/`list`/`reversed`, `get_object_or_404` и обращения к связям
-  другой переменной (`staff = site.employees.all()`).
-- Поддержка lookup-путей в queryset'ах: автокомплит, переход и подсказки для
+- The `djangoModelNavigator.debug` setting for a detailed log, plus the `Show Log` and `Toggle Debug Logging` commands.
+- The `excludePatterns`, `additionalFieldTypes`, `userModel`, `hoverMaxFields`, `maxDefinitionResults`, `enableDefinition`, `enableHover` and `enableCompletion` settings.
+- Setting changes apply without reloading the window.
+- Support for `self.field` inside model methods.
+- A variable's model is inferred from its assignment chain: `for x in <expression>`,
+  `with ... as x`, tuple unpacking, the `sorted`/`list`/`reversed` wrappers,
+  `get_object_or_404` and relations of another variable
+  (`staff = site.employees.all()`) are understood.
+- Queryset lookup paths: completion, go to definition and hovers for
   `filter(client__profile__email=...)`, `order_by("-client__name")`,
-  `values("client__name")`, `select_related(...)` и `Q(...)`, включая lookup'ы
-  вида `__icontains` и `__gte`.
-- Неявное поле `id` и имя `pk`, которые Django создаёт сам.
-- Учёт импортов файла при разрешении базовых классов и моделей связей:
-  `from shop.models import Client as ShopClient` теперь указывает именно
-  на `shop.Client`, а одноимённые модели из разных приложений не путаются.
-- Поддержка полей без префикса `models.` и типов полей из настроек.
-- Подсказки показывают `related_name`, источник унаследованного поля, обратную связь и ссылку на объявление.
-- Автокомплит сортирует свои поля выше унаследованных и обратных связей и показывает документацию.
-- `Find All References` по модели: поля-связи, указывающие на неё, и наследники;
-  настройка `enableReferences`.
-- CodeLens над объявлением модели с числом полей, обратных связей и использований;
-  настройка `enableCodeLens`.
-- Кэш учитывает несохранённые правки открытых файлов и обновляется при создании и удалении файлов.
-- Сохранение одного `models.py` перечитывает только этот файл, а не весь
-  workspace; удаление файла убирает его модели точечно.
-- Определение модели переменной кэшируется на версию документа
-  и ограничено окном в 1000 строк выше курсора.
-- Разбор кода вынесен в `src/parser.ts`, `src/registry.ts` и `src/lookup.ts`
-  и покрыт тестами (`npm test`), которые не требуют запуска VSCode.
-- Добавлены лицензия MIT и сборка с тестами в GitHub Actions.
-- `package-lock.json` хранится в репозитории: сборка и CI воспроизводимы (`npm ci`).
-- Добавлен ESLint с правилами под принятый стиль (`npm run lint`), он же проверяется в CI и перед упаковкой.
+  `values("client__name")`, `select_related(...)` and `Q(...)`, including
+  lookups such as `__icontains` and `__gte`.
+- The implicit `id` field and the `pk` alias that Django creates.
+- The file's imports are used to resolve base classes and relation targets:
+  `from shop.models import Client as ShopClient` now points to `shop.Client`,
+  and same-named models from different apps are no longer confused.
+- Fields without the `models.` prefix and field types from settings are supported.
+- Hovers show `related_name`, the origin of an inherited field, the reverse relation and a link to the declaration.
+- Completion lists own fields above inherited fields and reverse relations and shows documentation.
+- `Find All References` for a model: relation fields that point to it and its subclasses;
+  the `enableReferences` setting.
+- A CodeLens above a model declaration with the number of fields, reverse relations and usages;
+  the `enableCodeLens` setting.
+- The cache includes unsaved edits of open files and updates when files are created or deleted.
+- Saving a single `models.py` rereads only that file instead of the whole
+  workspace; deleting a file removes only its models.
+- A variable's model is cached per document version and limited to a window of 1000 lines above the cursor.
+- Code parsing moved to `src/parser.ts`, `src/registry.ts` and `src/lookup.ts`
+  and is covered by tests (`npm test`) that do not need to launch VS Code.
+- Added the MIT license and a GitHub Actions build with tests.
+- `package-lock.json` is kept in the repository, so builds and CI are reproducible (`npm ci`).
+- Added ESLint with rules matching the project style (`npm run lint`); it also runs in CI and before packaging.
 
 ## 1.2.0
 
-- Переход к определению, подсказки и автокомплит по полям Django-моделей.
+- Go to definition, hovers and completion for Django model fields.

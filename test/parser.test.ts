@@ -58,27 +58,27 @@ function fieldNames(target: ModelInfo): string[] {
 
 group('sanitizeSource');
 
-test('комментарии вырезаются, позиции символов сохраняются', () => {
-    const [line] = sanitizeSource('x = f(1)  # (комментарий)');
+test('comments are stripped and character positions are kept', () => {
+    const [line] = sanitizeSource('x = f(1)  # (comment)');
 
-    assert.strictEqual(line.length, 'x = f(1)  # (комментарий)'.length);
+    assert.strictEqual(line.length, 'x = f(1)  # (comment)'.length);
     assert.strictEqual(line.trimEnd(), 'x = f(1)');
 });
 
-test('содержимое однострочных литералов сохраняется', () => {
+test('single-line literal contents are kept', () => {
     const [line] = sanitizeSource('x = f("(%(class)s")');
 
     assert.strictEqual(line, 'x = f("(%(class)s")');
 });
 
-test('докстринг целиком маскируется', () => {
+test('a docstring is masked entirely', () => {
     const lines = sanitizeSource('"""\nclass Fake(models.Model):\n"""\nx = 1');
 
     assert.ok(/^[_ ]+$/.test(lines[1]), `docstring line is not masked: ${lines[1]}`);
     assert.strictEqual(lines[3], 'x = 1');
 });
 
-test('незакрытая скобка внутри строки не ломает разбор следующих полей', () => {
+test('an unclosed bracket inside a string does not break parsing of later fields', () => {
     const classes = parsePythonFile(
         'app/models.py',
         [
@@ -91,7 +91,7 @@ test('незакрытая скобка внутри строки не лома�
     assert.deepStrictEqual(classes[0].fields.map(field => field.name), ['a', 'b']);
 });
 
-test('докстринг на верхнем уровне не создаёт фантомную модель', () => {
+test('a top-level docstring does not create a phantom model', () => {
     const classes = parsePythonFile(
         'app/models.py',
         ['"""', 'class Fake(models.Model):', '"""', 'x = 1'].join('\n')
@@ -102,28 +102,28 @@ test('докстринг на верхнем уровне не создаёт ф
 
 group('splitTopLevelArgs / parseRelationArgs');
 
-test('запятая внутри строки не разбивает аргументы', () => {
+test('a comma inside a string does not split arguments', () => {
     assert.deepStrictEqual(
         splitTopLevelArgs('Client, help_text="a, b", choices=[(1, 2)]'),
         ['Client', 'help_text="a, b"', 'choices=[(1, 2)]']
     );
 });
 
-test('позиционный аргумент распознаётся как модель', () => {
+test('a positional argument is recognized as the model', () => {
     assert.strictEqual(
         parseRelationArgs('Client, on_delete=models.CASCADE').relatedModelRaw,
         'Client'
     );
 });
 
-test('kwarg to= распознаётся как модель', () => {
+test('the to= kwarg is recognized as the model', () => {
     assert.strictEqual(
         parseRelationArgs('to="accounts.User", on_delete=models.PROTECT').relatedModelRaw,
         'accounts.User'
     );
 });
 
-test('related_name=None отличается от отсутствующего related_name', () => {
+test('related_name=None differs from a missing related_name', () => {
     assert.strictEqual(parseRelationArgs('Client, related_name=None').relatedName, null);
     assert.strictEqual(parseRelationArgs('Client').relatedName, undefined);
 });
@@ -132,49 +132,49 @@ group('parsePythonFile');
 
 const shopClasses = parseFixture(SHOP).classes;
 
-test('TextChoices и QuerySet не считаются моделями', () => {
+test('TextChoices and QuerySet are not treated as models', () => {
     const index = buildIndex();
 
     assert.strictEqual(findModelByName(index, 'Status'), null);
     assert.strictEqual(findModelByName(index, 'ClientQuerySet'), null);
 });
 
-test('абстрактная база помечена флагом abstract', () => {
+test('an abstract base is flagged as abstract', () => {
     const base = shopClasses.find(cls => cls.name === 'TimeStampedModel');
 
     assert.ok(base);
     assert.strictEqual(base.isAbstract, true);
 });
 
-test('proxy-модель помечена флагом proxy', () => {
+test('a proxy model is flagged as proxy', () => {
     const proxy = parseFixture(ACCOUNTS).classes.find(cls => cls.name === 'LegacyProfile');
 
     assert.ok(proxy);
     assert.strictEqual(proxy.isProxy, true);
 });
 
-test('поле с комментарием в конце строки не теряется', () => {
+test('a field with a trailing comment is not lost', () => {
     const client = shopClasses.find(cls => cls.name === 'Client');
 
     assert.ok(client);
     assert.ok(client.fields.some(field => field.name === 'name' && field.type === 'CharField'));
 });
 
-test('присваивания внутри методов не попадают в поля', () => {
+test('assignments inside methods are not treated as fields', () => {
     const client = shopClasses.find(cls => cls.name === 'Client');
 
     assert.ok(client);
     assert.ok(!client.fields.some(field => field.name === 'title'));
 });
 
-test('менеджеры и прочие вызовы не считаются полями', () => {
+test('managers and other calls are not treated as fields', () => {
     const client = shopClasses.find(cls => cls.name === 'Client');
 
     assert.ok(client);
     assert.ok(!client.fields.some(field => field.name === 'objects'));
 });
 
-test('многострочное объявление поля разбирается', () => {
+test('a multiline field declaration is parsed', () => {
     const client = shopClasses.find(cls => cls.name === 'Client');
     const owner = client?.fields.find(field => field.name === 'owner');
 
@@ -183,7 +183,7 @@ test('многострочное объявление поля разбирае�
     assert.strictEqual(owner.relatedName, 'clients');
 });
 
-test('запоминается позиция объявления поля', () => {
+test('the field declaration position is recorded', () => {
     const client = shopClasses.find(cls => cls.name === 'Client');
     const name = client?.fields.find(field => field.name === 'name');
     const lines = fs.readFileSync(SHOP, 'utf-8').split('\n');
@@ -197,19 +197,19 @@ test('запоминается позиция объявления поля', ()
 
 group('buildModelIndex');
 
-test('имя приложения берётся из каталога пакета, а не из models/', () => {
+test('the app name comes from the package directory, not models/', () => {
     assert.strictEqual(appNameFromPath(SHOP), 'shop');
     assert.strictEqual(appNameFromPath(ACCOUNTS), 'accounts');
 });
 
-test('модель, унаследованная от локальной абстрактной базы, попадает в индекс', () => {
+test('a model inheriting from a local abstract base is indexed', () => {
     const index = buildIndex();
 
     assert.ok(findModelByName(index, 'Client'));
     assert.ok(findModelByName(index, 'Review'));
 });
 
-test('унаследованные поля подтягиваются из абстрактной базы', () => {
+test('inherited fields are pulled from the abstract base', () => {
     const client = model(buildIndex(), 'Client');
 
     assert.ok(fieldNames(client).includes('created_at'));
@@ -219,7 +219,7 @@ test('унаследованные поля подтягиваются из аб
     );
 });
 
-test("ForeignKey('self') разрешается в саму модель", () => {
+test("ForeignKey('self') resolves to the model itself", () => {
     const client = model(buildIndex(), 'Client');
     const parent = client.fields.find(field => field.name === 'parent');
 
@@ -227,46 +227,46 @@ test("ForeignKey('self') разрешается в саму модель", () =>
     assert.ok(fieldNames(client).includes('children'));
 });
 
-test('settings.AUTH_USER_MODEL разрешается в кастомную модель пользователя', () => {
+test('settings.AUTH_USER_MODEL resolves to the custom user model', () => {
     const client = model(buildIndex(), 'Client');
     const owner = client.fields.find(field => field.name === 'owner');
 
     assert.strictEqual(owner?.relatedModel, 'User');
 });
 
-test('обратная связь появляется у целевой модели', () => {
+test('the reverse relation appears on the target model', () => {
     const index = buildIndex();
     const user = model(index, 'User');
 
     assert.ok(fieldNames(user).includes('clients'));
 });
 
-test("related_name='+' не создаёт обратной связи", () => {
+test("related_name='+' creates no reverse relation", () => {
     const user = model(buildIndex(), 'User');
 
     assert.ok(!fieldNames(user).includes('client_set'));
 });
 
-test('обратная связь без related_name получает суффикс _set', () => {
+test('a reverse relation without related_name gets the _set suffix', () => {
     const client = model(buildIndex(), 'Client');
 
     assert.ok(fieldNames(client).includes('review_set'));
 });
 
-test('OneToOneField даёт обратную связь без суффикса', () => {
+test('OneToOneField gives a reverse relation without a suffix', () => {
     const profile = model(buildIndex(), 'Profile');
 
     assert.ok(fieldNames(profile).includes('review'));
     assert.ok(fieldNames(profile).includes('user'));
 });
 
-test('шаблон %(class)s в related_name раскрывается', () => {
+test('the %(class)s placeholder in related_name is expanded', () => {
     const tag = model(buildIndex(), 'Tag');
 
     assert.ok(fieldNames(tag).includes('review_items'));
 });
 
-test('абстрактная модель не получает обратных связей', () => {
+test('an abstract model gets no reverse relations', () => {
     const index = buildIndex();
     const base = index.models.find(item => item.name === 'TimeStampedModel');
 
@@ -277,7 +277,7 @@ test('абстрактная модель не получает обратных
 
 group('resolveFieldChain');
 
-test('цепочка связей проходит до нужной модели', () => {
+test('a relation chain reaches the expected model', () => {
     const index = buildIndex();
     const review = model(index, 'Review');
 
@@ -286,7 +286,7 @@ test('цепочка связей проходит до нужной модел�
     assert.strictEqual(target?.name, 'Profile');
 });
 
-test('цепочка через обратную связь работает', () => {
+test('a chain through a reverse relation works', () => {
     const index = buildIndex();
     const client = model(index, 'Client');
 
@@ -295,7 +295,7 @@ test('цепочка через обратную связь работает', (
     assert.strictEqual(target?.name, 'Profile');
 });
 
-test('обычное поле обрывает цепочку', () => {
+test('a regular field ends the chain', () => {
     const index = buildIndex();
     const review = model(index, 'Review');
 
@@ -304,7 +304,7 @@ test('обычное поле обрывает цепочку', () => {
 
 group('parseImports');
 
-test('импорты с псевдонимами и в скобках разбираются', () => {
+test('aliased and parenthesized imports are parsed', () => {
     const imports = parseImports(fs.readFileSync(BLOG, 'utf-8'));
 
     const alias = imports.find(entry => entry.local === 'ShopClient');
@@ -316,24 +316,24 @@ test('импорты с псевдонимами и в скобках разби
     assert.ok(imports.some(entry => entry.local === 'Review' && entry.module === 'shop.models'));
 });
 
-test('относительный импорт сохраняет уровень', () => {
+test('a relative import keeps its level', () => {
     const imports = parseImports('from ..common.models import Base\n');
 
     assert.strictEqual(imports[0].level, 2);
     assert.strictEqual(imports[0].module, 'common.models');
 });
 
-test('import * пропускается', () => {
+test('import * is skipped', () => {
     assert.deepStrictEqual(parseImports('from shop.models import *\n'), []);
 });
 
-test('импорт внутри функции не учитывается', () => {
+test('an import inside a function is ignored', () => {
     assert.deepStrictEqual(parseImports('def f():\n    from shop.models import Client\n'), []);
 });
 
 group('resolveImportFile');
 
-test('абсолютный импорт находит файл по хвосту пути', () => {
+test('an absolute import finds the file by path suffix', () => {
     const resolved = resolveImportFile(
         { local: 'Client', original: 'Client', module: 'shop.models', level: 0 },
         BLOG,
@@ -343,7 +343,7 @@ test('абсолютный импорт находит файл по хвост�
     assert.strictEqual(resolved, SHOP);
 });
 
-test('относительный импорт считается от каталога файла', () => {
+test('a relative import is resolved from the file directory', () => {
     const resolved = resolveImportFile(
         { local: 'User', original: 'User', module: 'user', level: 1 },
         path.join(FIXTURES, 'accounts', 'models', '__init__.py'),
@@ -353,7 +353,7 @@ test('относительный импорт считается от катал
     assert.strictEqual(resolved, ACCOUNTS);
 });
 
-test('неоднозначный импорт ничего не уточняет', () => {
+test('an ambiguous import narrows nothing', () => {
     const resolved = resolveImportFile(
         { local: 'Tag', original: 'Tag', module: 'models', level: 0 },
         BLOG,
@@ -363,9 +363,9 @@ test('неоднозначный импорт ничего не уточняет
     assert.strictEqual(resolved, undefined);
 });
 
-group('разрешение одноимённых моделей');
+group('resolving models with the same name');
 
-test('связь без импорта указывает на модель из того же файла', () => {
+test('a relation without an import points to the model in the same file', () => {
     const index = buildIndex();
     const post = model(index, 'Post');
     const tag = post.fields.find(field => field.name === 'tag');
@@ -377,7 +377,7 @@ test('связь без импорта указывает на модель из
     assert.strictEqual(target?.appName, 'blog');
 });
 
-test('импорт с псевдонимом указывает на модель другого приложения', () => {
+test('an aliased import points to the model of another app', () => {
     const index = buildIndex();
     const post = model(index, 'Post');
     const client = post.fields.find(field => field.name === 'client');
@@ -389,7 +389,7 @@ test('импорт с псевдонимом указывает на модел�
     assert.strictEqual(target?.appName, 'shop');
 });
 
-test('обратная связь попадает в модель из нужного приложения', () => {
+test('the reverse relation lands on the model from the right app', () => {
     const index = buildIndex();
 
     const shopTag = index.models.find(item => item.name === 'Tag' && item.appName === 'shop');
@@ -398,13 +398,13 @@ test('обратная связь попадает в модель из нужн
     assert.ok(shopTag && blogTag);
 
     // Post.shop_tag targets shop.Tag; Post.tag targets blog.Tag
-    assert.ok(fieldNames(shopTag).includes('posts'), 'shop.Tag не получил обратную связь posts');
-    assert.ok(!fieldNames(shopTag).includes('posts_by_tag'), 'в shop.Tag попала чужая связь');
-    assert.ok(fieldNames(blogTag).includes('posts_by_tag'), 'blog.Tag не получил posts_by_tag');
-    assert.ok(!fieldNames(blogTag).includes('posts'), 'в blog.Tag попала чужая связь');
+    assert.ok(fieldNames(shopTag).includes('posts'), 'shop.Tag lacks the posts reverse relation');
+    assert.ok(!fieldNames(shopTag).includes('posts_by_tag'), 'shop.Tag got a foreign relation');
+    assert.ok(fieldNames(blogTag).includes('posts_by_tag'), 'blog.Tag did not get posts_by_tag');
+    assert.ok(!fieldNames(blogTag).includes('posts'), 'blog.Tag got a foreign relation');
 });
 
-test('цепочка идёт по модели из импорта', () => {
+test('the chain follows the imported model', () => {
     const index = buildIndex();
     const post = model(index, 'Post');
 
@@ -413,9 +413,9 @@ test('цепочка идёт по модели из импорта', () => {
     assert.strictEqual(target?.name, 'User');
 });
 
-group('встроенные модели Django');
+group('built-in Django models');
 
-test('встроенные модели попадают в индекс', () => {
+test('built-in models are indexed', () => {
     const index = buildIndex();
 
     assert.ok(findModelByName(index, 'Group'));
@@ -423,7 +423,7 @@ test('встроенные модели попадают в индекс', () =>
     assert.ok(findModelByName(index, 'Permission'));
 });
 
-test('своя модель вытесняет встроенную', () => {
+test('a project model overrides the built-in one', () => {
     const index = buildIndex();
     const users = index.byLowerName.get('user') ?? [];
 
@@ -432,16 +432,16 @@ test('своя модель вытесняет встроенную', () => {
     assert.strictEqual(users[0].appName, 'accounts');
 });
 
-test('поля наследуются от встроенного AbstractUser', () => {
+test('fields are inherited from the built-in AbstractUser', () => {
     const user = model(buildIndex(), 'User');
 
-    assert.ok(fieldNames(user).includes('username'), 'нет поля username');
-    assert.ok(fieldNames(user).includes('email'), 'нет поля email');
-    assert.ok(fieldNames(user).includes('is_staff'), 'нет поля is_staff');
-    assert.ok(fieldNames(user).includes('phone'), 'потеряно своё поле');
+    assert.ok(fieldNames(user).includes('username'), 'missing field username');
+    assert.ok(fieldNames(user).includes('email'), 'missing field email');
+    assert.ok(fieldNames(user).includes('is_staff'), 'missing field is_staff');
+    assert.ok(fieldNames(user).includes('phone'), 'own field is lost');
 });
 
-test('встроенные модели можно отключить', () => {
+test('built-in models can be disabled', () => {
     const index = buildModelIndex(
         [parseFixture(SHOP), parseFixture(ACCOUNTS), parseFixture(BLOG)],
         { includeBuiltins: false }
@@ -450,14 +450,14 @@ test('встроенные модели можно отключить', () => {
     assert.strictEqual(findModelByName(index, 'Group'), null);
 });
 
-test('у встроенной модели нет файла в проекте', () => {
+test('a built-in model has no file in the project', () => {
     const group = model(buildIndex(), 'Group');
 
     assert.strictEqual(group.isBuiltin, true);
     assert.strictEqual(group.fullName, 'auth.models.Group');
 });
 
-test('связь на встроенную модель разрешается', () => {
+test('a relation to a built-in model is resolved', () => {
     const index = buildIndex();
     const permission = model(index, 'Permission');
     const contentType = permission.fields.find(field => field.name === 'content_type');
@@ -466,7 +466,7 @@ test('связь на встроенную модель разрешается',
     assert.ok(fieldNames(model(index, 'ContentType')).includes('permission_set'));
 });
 
-test('встроенные группы и права пользователя повторяют related_name из django.contrib.auth', () => {
+test('built-in user groups and permissions match related_name from django.contrib.auth', () => {
     // PermissionsMixin: related_name="user_set", related_query_name="user"; LogEntry.user is
     // ForeignKey(settings.AUTH_USER_MODEL)
     const index = buildModelIndex([sourceFile('people', 'class Account(AbstractUser):\n    pass')]);
@@ -480,7 +480,7 @@ test('встроенные группы и права пользователя �
     assert.strictEqual(resolveFieldChain(index, model(index, 'LogEntry'), ['user'])?.name, 'Account');
 });
 
-test('модель вне индекса не подменяется одноимённой моделью проекта', () => {
+test('a model outside the index is not replaced by a project model with the same name', () => {
     // taggit.Tag lives in an unindexed third-party package, not in the catalog app
     const index = buildModelIndex([
         sourceFile('catalog', 'class Tag(models.Model):\n    title = models.CharField()'),
@@ -493,7 +493,7 @@ test('модель вне индекса не подменяется однои�
     assert.ok(!fieldNames(model(index, 'Tag')).includes('product_set'));
 });
 
-test('импорт из пакета моделей разрешает связь и базу через __init__', () => {
+test('an import from a models package resolves the relation and base via __init__', () => {
     const index = buildModelIndex([
         sourceFile('catalog', 'class Tag(models.Model):\n    title = models.CharField()\nclass Base(models.Model):\n    created = models.DateTimeField()\n    class Meta:\n        abstract = True', path.join('models', 'tag.py')),
         sourceFile('archive', 'class Tag(models.Model):\n    old = models.CharField()\nclass Base(models.Model):\n    old = models.CharField()\n    class Meta:\n        abstract = True'),
@@ -505,7 +505,7 @@ test('импорт из пакета моделей разрешает связ�
     assert.ok(fieldNames(product).includes('created'));
 });
 
-group('регрессии разрешения моделей и полей');
+group('model and field resolution regressions');
 
 /** Parse an in-memory module at a representative app path */
 function sourceFile(app: string, source: string, name = 'models.py'): ParsedFile {
@@ -514,7 +514,7 @@ function sourceFile(app: string, source: string, name = 'models.py'): ParsedFile
     return { filePath, ...parseModule(filePath, source) };
 }
 
-test('стандартный AUTH_USER_MODEL указывает на конкретного auth.User', () => {
+test('the default AUTH_USER_MODEL points to the concrete auth.User', () => {
     const index = buildModelIndex([sourceFile('posts', [
         'class Entry(models.Model):',
         '    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="entries")'
@@ -527,7 +527,7 @@ test('стандартный AUTH_USER_MODEL указывает на конкр�
     assert.ok(fieldNames(target).includes('entries'));
 });
 
-test('конкретный пользователь находится через промежуточную абстрактную базу', () => {
+test('a concrete user is found through an intermediate abstract base', () => {
     const index = buildModelIndex([sourceFile('people', [
         'class BasePerson(AbstractUser):',
         '    class Meta:',
@@ -541,7 +541,7 @@ test('конкретный пользователь находится чере�
     assert.strictEqual(resolveFieldChain(index, model(index, 'Entry'), ['author'])?.name, 'Person');
 });
 
-test('proxy и наследник пользователя не становятся AUTH_USER_MODEL при любом порядке файлов', () => {
+test('a proxy or subclass of the user never becomes AUTH_USER_MODEL in any file order', () => {
     // settings.AUTH_USER_MODEL names the swappable model itself, not its subclasses
     const users = sourceFile('accounts', 'class User(AbstractUser):\n    pass');
     const staff = sourceFile('staff', 'from accounts.models import User\nclass StaffUser(User):\n    class Meta:\n        proxy = True\nclass Manager(User):\n    level = models.IntegerField()');
@@ -556,7 +556,7 @@ test('proxy и наследник пользователя не становят
     }
 });
 
-test('обратная связь сохраняет владельца при совпадающих именах моделей', () => {
+test('a reverse relation keeps its owner when model names clash', () => {
     const index = buildModelIndex([
         sourceFile('catalog', 'class Label(models.Model):\n    title = models.CharField()\nclass Entry(models.Model):\n    local = models.CharField()'),
         sourceFile('journal', 'from catalog.models import Label\nclass Entry(models.Model):\n    label = models.ForeignKey(Label, on_delete=models.CASCADE, related_name="journal_entries")\n    body = models.TextField()')
@@ -567,7 +567,7 @@ test('обратная связь сохраняет владельца при �
     assert.ok(fieldNames(target).includes('body'));
 });
 
-test('квалифицированная база проекта сохраняет унаследованные поля', () => {
+test('a qualified project base keeps inherited fields', () => {
     const index = buildModelIndex([
         sourceFile('common', 'class Base(models.Model):\n    created = models.DateTimeField()\n    class Meta:\n        abstract = True'),
         sourceFile('journal', 'from common import models as common\nclass Entry(common.Base):\n    title = models.CharField()')
@@ -576,7 +576,7 @@ test('квалифицированная база проекта сохраня�
     assert.ok(fieldNames(model(index, 'Entry')).includes('created'));
 });
 
-test('унаследованная связь разрешает alias в файле объявления', () => {
+test('an inherited relation resolves the alias in the declaring file', () => {
     const index = buildModelIndex([
         sourceFile('catalog', 'class Label(models.Model):\n    title = models.CharField()'),
         sourceFile('common', 'from catalog.models import Label as CatalogLabel\nclass Base(models.Model):\n    label = models.ForeignKey(CatalogLabel, on_delete=models.CASCADE, related_name="%(class)s_entries")\n    class Meta:\n        abstract = True'),
@@ -588,7 +588,7 @@ test('унаследованная связь разрешает alias в фай
     assert.ok(fieldNames(target).includes('entry_entries'));
 });
 
-test('строковая связь использует приложение, а Python-ссылка — импорт', () => {
+test('a string relation uses the app while a Python reference uses the import', () => {
     const index = buildModelIndex([
         sourceFile('catalog', 'class Label(models.Model):\n    title = models.CharField()'),
         sourceFile('journal', 'class Label(models.Model):\n    body = models.TextField()', path.join('models', 'label.py')),
@@ -600,7 +600,7 @@ test('строковая связь использует приложение, �
     assert.strictEqual(resolveFieldChain(index, entry, ['eager'])?.appName, 'catalog');
 });
 
-test('строковая связь абстрактной базы разрешается в приложении наследника', () => {
+test("an abstract base's string relation resolves in the subclass app", () => {
     const index = buildModelIndex([
         sourceFile('common', 'class Label(models.Model):\n    old = models.CharField()\nclass Base(models.Model):\n    label = models.ForeignKey("Label", on_delete=models.CASCADE, related_name="%(class)s_entries")\n    parent = models.ForeignKey("self", on_delete=models.CASCADE)\n    class Meta:\n        abstract = True'),
         sourceFile('journal', 'from common.models import Base\nclass Label(models.Model):\n    current = models.CharField()\nclass Entry(Base):\n    pass')
@@ -611,7 +611,7 @@ test('строковая связь абстрактной базы разреш
     assert.strictEqual(resolveFieldChain(index, entry, ['parent'])?.key, entry.key);
 });
 
-test('строковая связь конкретного родителя разрешается в его приложении', () => {
+test("a concrete parent's string relation resolves in its own app", () => {
     // Django copies fields only from abstract bases; a concrete parent keeps its own field
     const index = buildModelIndex([
         sourceFile('places', 'class Owner(models.Model):\n    name = models.CharField()\nclass Place(models.Model):\n    owner = models.ForeignKey("Owner", on_delete=models.CASCADE)\n    parent = models.ForeignKey("self", on_delete=models.CASCADE)'),
@@ -626,7 +626,7 @@ test('строковая связь конкретного родителя ра
     }
 });
 
-test('наследник конкретной модели не добавляет обратный аксессор её связи', () => {
+test("a concrete model's subclass does not add a reverse accessor for its relation", () => {
     // The parent's field is not copied into a multi-table child, so Owner has no restaurant_set
     const index = buildModelIndex([
         sourceFile('places', 'class Owner(models.Model):\n    name = models.CharField()\nclass Place(models.Model):\n    owner = models.ForeignKey(Owner, on_delete=models.CASCADE)\nclass Restaurant(Place):\n    pass')
@@ -637,7 +637,7 @@ test('наследник конкретной модели не добавляе
     assert.ok(!names.includes('restaurant_set'));
 });
 
-test('обратная связь получает имя для lookup по правилам related_query_name', () => {
+test('a reverse relation gets its lookup name per related_query_name rules', () => {
     // Django: related_query_name, else related_name, else the lowercase model name
     const index = buildModelIndex([sourceFile('journal', [
         'class Label(models.Model):',
@@ -659,7 +659,7 @@ test('обратная связь получает имя для lookup по п�
     assert.strictEqual(walkLookupPath(index, label, ['entry_set'], true)[0].field?.name, 'entry_set');
 });
 
-test('текст primary_key=True внутри строки не заменяет неявный id', () => {
+test('primary_key=True text inside a string does not replace the implicit id', () => {
     const index = buildModelIndex([sourceFile('journal', 'class Entry(models.Model):\n    title = models.CharField(max_length=100, help_text="Use primary_key=True for natural keys")')]);
     const entry = model(index, 'Entry');
 
@@ -668,14 +668,14 @@ test('текст primary_key=True внутри строки не заменяе�
     assert.strictEqual(findModelField(entry, 'pk')?.name, 'id');
 });
 
-test('primary_key читается только из верхнеуровневого аргумента', () => {
+test('primary_key is read only from a top-level argument', () => {
     const classes = parsePythonFile(SHOP, 'class Entry(models.Model):\n    code = models.CharField(primary_key=True)\n    title = models.CharField(validators=[validator(primary_key=True)])');
 
     assert.strictEqual(classes[0].fields[0].isPrimaryKey, true);
     assert.ok(!classes[0].fields[1].isPrimaryKey);
 });
 
-test('неотступленный текст docstring не завершает тело модели', () => {
+test('unindented docstring text does not end the model body', () => {
     const classes = parsePythonFile(SHOP, 'class Entry(models.Model):\n    """Entry.\nUnindented documentation.\n    """\n    title = models.CharField(max_length=100)\nclass Next(models.Model):\n    body = models.TextField()');
 
     assert.deepStrictEqual(classes[0].fields.map(field => field.name), ['title']);
@@ -684,9 +684,9 @@ test('неотступленный текст docstring не завершает 
     assert.deepStrictEqual(classes[1].fields.map(field => field.name), ['body']);
 });
 
-group('возвраты функций');
+group('function returns');
 
-test('return вложенной функции с многострочным заголовком не приписывается внешней', () => {
+test('a nested function return with a multiline header stays out of the outer one', () => {
     const functions = parseFunctions([
         'def outer():',
         '    def inner(',
@@ -700,7 +700,7 @@ test('return вложенной функции с многострочным з�
     assert.deepStrictEqual(functions[0].returns.map(item => item.expressions), [['None']]);
 });
 
-test('return в стиле Black читается до конца логической строки', () => {
+test('a Black-style return is read to the end of the logical line', () => {
     const functions = parseFunctions([
         'def pick(pk):',
         '    return Review.objects.get(',
@@ -728,7 +728,7 @@ test('return в стиле Black читается до конца логичес
     assert.deepStrictEqual(expressions[3], ['Client.objects.first()']);
 });
 
-test('многострочный return сохраняет отдельные позиции кортежа', () => {
+test('a multiline return keeps separate tuple positions', () => {
     const functions = parseFunctions([
         'def get_rows(request):',
         '    query = Client.objects.all()',
@@ -745,7 +745,7 @@ test('многострочный return сохраняет отдельные п
     assert.strictEqual(functions[0].returns[0].tuple, true);
 });
 
-test('аннотация и return вложенной функции не смешиваются с внешней', () => {
+test("a nested function's annotation and return do not mix with the outer one", () => {
     const functions = parseFunctions([
         'def get_rows(',
         '    request,',
@@ -760,7 +760,7 @@ test('аннотация и return вложенной функции не сме
     assert.deepStrictEqual(functions[0].returns[0].expressions, ['Client.objects.all()']);
 });
 
-group('время разбора длинных строк');
+group('long line parsing time');
 
 /** Parsing runs on the shared extension host thread, so long lines must stay linear */
 function elapsed(run: () => unknown): number {
@@ -771,7 +771,7 @@ function elapsed(run: () => unknown): number {
     return Date.now() - startedAt;
 }
 
-test('длинная серия пробелов в сигнатуре не замедляет разбор', () => {
+test('a long run of spaces in a signature does not slow parsing', () => {
     const source = 'def f() ->' + ' '.repeat(1500) + '\n';
 
     assert.ok(elapsed(() => analyzeSource(source)) < 200);
@@ -779,7 +779,7 @@ test('длинная серия пробелов в сигнатуре не за
 
 for (const line of ['        "' + 'x'.repeat(40000) + '",', 'with patch("' + 'x'.repeat(40000) + '"):',
     'x = 1; "' + 'x'.repeat(40000) + '"']) {
-    test(`поиск присваиваний линеен на строке ${line.slice(0, 12)}…`, () => {
+    test(`assignment search is linear on line ${line.slice(0, 12)}…`, () => {
         const source = ['client = Client.objects.first()', line, 'client.'].join('\n');
         const syntax = analyzeSource(source);
 

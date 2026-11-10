@@ -95,30 +95,30 @@ function hoverFor(lines: string[], needle: string): string | null {
 export const done = ready.then(async () => {
     group('autocomplete');
 
-    test('сразу после точки предлагаются поля модели', () => {
+    test('model fields are suggested right after the dot', () => {
         const lines = ['client = Client.objects.first()', 'print(client.)'];
         const labels = completionsFor(lines, 'client.');
 
-        assert.ok(labels.includes('name'), `нет поля name: ${labels.join(', ')}`);
-        assert.ok(labels.includes('created_at'), 'нет унаследованного поля');
-        assert.ok(labels.includes('review_set'), 'нет обратной связи');
+        assert.ok(labels.includes('name'), `missing field name: ${labels.join(', ')}`);
+        assert.ok(labels.includes('created_at'), 'missing inherited field');
+        assert.ok(labels.includes('review_set'), 'missing reverse relation');
     });
 
-    test('после начала имени поля предложения те же', () => {
+    test('suggestions stay the same after typing part of the field name', () => {
         const lines = ['client = Client.objects.first()', 'print(client.na)'];
 
         assert.ok(completionsFor(lines, 'client.na').includes('name'));
     });
 
-    test('цепочка связей продолжается', () => {
+    test('relation chains continue', () => {
         const lines = ['review = Review.objects.first()', 'print(review.client.)'];
         const labels = completionsFor(lines, 'review.client.');
 
         assert.ok(labels.includes('name'));
-        assert.ok(!labels.includes('text'), 'предложены поля Review вместо Client');
+        assert.ok(!labels.includes('text'), 'Review fields suggested instead of Client');
     });
 
-    test('свои поля сортируются выше обратных связей', () => {
+    test('own fields sort above reverse relations', () => {
         const lines = ['client = Client.objects.first()', 'print(client.)'];
 
         const items: stub.CompletionItem[] = stub.registered.completion[0].provideCompletionItems(
@@ -133,25 +133,25 @@ export const done = ready.then(async () => {
         assert.ok(own.sortText < reverse.sortText);
     });
 
-    test('в корне выражения автокомплит не вмешивается', () => {
+    test('autocomplete stays out of the expression root', () => {
         const lines = ['client = Client.objects.first()', 'print(clie)'];
 
         assert.deepStrictEqual(completionsFor(lines, 'clie'), []);
     });
 
-    test('аннотация типа тоже определяет модель', () => {
+    test('a type annotation also resolves the model', () => {
         const lines = ['def handle(review: Review):', '    print(review.)'];
 
         assert.ok(completionsFor(lines, 'review.').includes('text'));
     });
 
-    test('for-цикл определяет модель', () => {
+    test('a for loop resolves the model', () => {
         const lines = ['for review in Review.objects.all():', '    print(review.)'];
 
         assert.ok(completionsFor(lines, 'review.').includes('text'));
     });
 
-    await testAsync('self внутри модели определяет модель', async () => {
+    await testAsync('self inside a model resolves the model', async () => {
         const document = stub.TextDocument.fromFile(SHOP);
         const lines = document.getText().split('\n');
         const line = lines.findIndex(text => text.includes('return self.name'));
@@ -163,12 +163,12 @@ export const done = ready.then(async () => {
 
         const labels = (items ?? []).map((item: stub.CompletionItem) => item.label);
 
-        assert.ok(labels.includes('name'), `нет поля name: ${labels.join(', ')}`);
+        assert.ok(labels.includes('name'), `missing field name: ${labels.join(', ')}`);
     });
 
-    group('переменные из связей');
+    group('variables from relations');
 
-    test('переменная из обратной связи другой переменной', () => {
+    test('variable from a reverse relation of another variable', () => {
         const lines = [
             'client = Client.objects.first()',
             'staff = client.employees.all()',
@@ -178,10 +178,10 @@ export const done = ready.then(async () => {
 
         const labels = completionsFor(lines, 'item.');
 
-        assert.ok(labels.includes('rate'), `нет поля rate: ${labels.join(', ')}`);
+        assert.ok(labels.includes('rate'), `missing field rate: ${labels.join(', ')}`);
     });
 
-    test('цепочка через несколько переменных и sorted', () => {
+    test('chain through several variables and sorted', () => {
         const lines = [
             'query = Client.objects.filter(name="x")',
             'rows = query.order_by("name").all()',
@@ -194,10 +194,10 @@ export const done = ready.then(async () => {
 
         const labels = completionsFor(lines, 'item.profile.');
 
-        assert.ok(labels.includes('email'), `нет поля email: ${labels.join(', ')}`);
+        assert.ok(labels.includes('email'), `missing field email: ${labels.join(', ')}`);
     });
 
-    test('переход к определению сквозь цепочку переменных', () => {
+    test('go to definition through a variable chain', () => {
         const lines = [
             'client = Client.objects.first()',
             'staff = client.employees.all()',
@@ -211,19 +211,19 @@ export const done = ready.then(async () => {
         assert.ok(lineOf(locations[0]).includes('rate = models.DecimalField'));
     });
 
-    test('get_object_or_404 определяет модель', () => {
+    test('get_object_or_404 resolves the model', () => {
         const lines = ['obj = get_object_or_404(Client, pk=1)', 'print(obj.)'];
 
         assert.ok(completionsFor(lines, 'obj.').includes('name'));
     });
 
-    test('with ... as определяет модель', () => {
+    test('with ... as resolves the model', () => {
         const lines = ['with Client.objects.first() as entry:', '    print(entry.)'];
 
         assert.ok(completionsFor(lines, 'entry.').includes('name'));
     });
 
-    test('lookup-путь от переменной из цепочки', () => {
+    test('lookup path from a chained variable', () => {
         const lines = [
             'client = Client.objects.first()',
             'staff = client.employees.all()',
@@ -233,19 +233,19 @@ export const done = ready.then(async () => {
         assert.ok(completionsFor(lines, 'profile__').includes('email'));
     });
 
-    test('взаимные присваивания не зацикливают разбор', () => {
+    test('mutual assignments do not loop the parser', () => {
         const lines = ['first = second', 'second = first', 'print(first.)'];
 
         assert.deepStrictEqual(completionsFor(lines, 'first.'), []);
     });
 
-    test('присваивание атрибуту не считается присваиванием переменной', () => {
+    test('attribute assignment is not treated as variable assignment', () => {
         const lines = ['self.entry = Client.objects.first()', 'print(entry.)'];
 
         assert.deepStrictEqual(completionsFor(lines, 'entry.'), []);
     });
 
-    test('переход по импортированному псевдониму ведёт к исходной модели', () => {
+    test('an imported alias leads to the original model', () => {
         const locations = definitionsFor([
             'from shop.models import Client as ShopClient',
             'entry = ShopClient.objects.first()'
@@ -256,7 +256,7 @@ export const done = ready.then(async () => {
         assert.ok(lineOf(locations[0]).includes('class Client('));
     });
 
-    test('вложенное присваивание важнее совпадения имени с моделью', () => {
+    test('nested assignment wins over a name matching a model', () => {
         const labels = completionsFor([
             'client = Profile.objects.first()',
             'item = client',
@@ -267,7 +267,7 @@ export const done = ready.then(async () => {
         assert.ok(!labels.includes('name'));
     });
 
-    test('переприсваивание источника не меняет ранее полученный queryset', () => {
+    test('reassigning the source does not change a queryset obtained earlier', () => {
         const labels = completionsFor([
             'query = Client.objects.all()',
             'items = query',
@@ -280,9 +280,9 @@ export const done = ready.then(async () => {
         assert.ok(!labels.includes('email'));
     });
 
-    group('результаты функций');
+    group('function results');
 
-    test('аннотация параметра со значением по умолчанию в многострочной сигнатуре', () => {
+    test('parameter annotation with a default in a multiline signature', () => {
         const lines = ['def view(', '    client: Client | None = None,', '):', '    client.'];
         const body = ['def view(', '    client: Client | None = None,', '):',
             '    client = Profile.objects.first()', '    client.'];
@@ -292,7 +292,7 @@ export const done = ready.then(async () => {
         assert.ok(completionsFor(body, '    client.').includes('email'));
     });
 
-    test('многострочный return с хвостом цепочки не подменяет модель', () => {
+    test('multiline return with a chain tail does not swap the model', () => {
         const lines = ['def pick(pk):', '    return Review.objects.get(', '        pk=pk',
             '    ).client', 'row = pick(1)', 'row.text'];
         const shaped = ['def ids():', '    return Client.objects.filter(', '        name="a"',
@@ -303,7 +303,7 @@ export const done = ready.then(async () => {
         assert.strictEqual(hoverFor(shaped, 'row.name'), null);
     });
 
-    test('модель результата локальной функции выводится из return', () => {
+    test('local function result model is inferred from return', () => {
         const labels = completionsFor([
             'def get_entry():',
             '    return Profile.objects.first()',
@@ -314,7 +314,7 @@ export const done = ready.then(async () => {
         assert.ok(labels.includes('email'));
     });
 
-    test('аннотация возврата используется для локальной функции', () => {
+    test('return annotation is used for a local function', () => {
         const labels = completionsFor([
             'def get_entry() -> Profile:',
             '    return external_service()',
@@ -325,7 +325,7 @@ export const done = ready.then(async () => {
         assert.ok(labels.includes('email'));
     });
 
-    test('разные модели в return не дают ложного определения', () => {
+    test('different models in return do not yield a false resolution', () => {
         const labels = completionsFor([
             'def get_entry(flag):',
             '    if flag:',
@@ -338,7 +338,7 @@ export const done = ready.then(async () => {
         assert.deepStrictEqual(labels, []);
     });
 
-    test('рекурсивный вызов функции не зацикливает определение модели', () => {
+    test('recursive function call does not loop model resolution', () => {
         const labels = completionsFor([
             'def get_entry():',
             '    return get_entry()',
@@ -349,7 +349,7 @@ export const done = ready.then(async () => {
         assert.deepStrictEqual(labels, []);
     });
 
-    await testAsync('локальный helper читает native fs без файлового API редактора', async () => {
+    await testAsync('local helper is read via native fs, not the editor file API', async () => {
         stub.emitters.save.fire(doc(['pass']));
         const originalLocal = stub.localFiles.readFile;
         const originalApi = stub.workspace.fs.readFile;
@@ -369,15 +369,15 @@ export const done = ready.then(async () => {
                 .provideHover(doc(lines), cursorAfter(lines, 'rows.name'));
 
             assert.ok(hover?.contents.value.includes('Client.name'));
-            assert.strictEqual(localReads, 1, 'нет локального быстрого пути');
-            assert.strictEqual(apiReads, 0, 'локальный helper читался через API VS Code');
+            assert.strictEqual(localReads, 1, 'no local fast path');
+            assert.strictEqual(apiReads, 0, 'local helper was read through the VS Code API');
         } finally {
             stub.localFiles.readFile = originalLocal;
             stub.workspace.fs.readFile = originalApi;
         }
     });
 
-    await testAsync('ошибка native-чтения пробует API редактора один раз', async () => {
+    await testAsync('a native read error falls back to the editor API once', async () => {
         stub.emitters.save.fire(doc(['pass']));
         const originalLocal = stub.localFiles.readFile;
         const originalApi = stub.workspace.fs.readFile;
@@ -407,7 +407,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    await testAsync('Remote читает helper через API редактора', async () => {
+    await testAsync('Remote reads the helper through the editor API', async () => {
         stub.emitters.save.fire(doc(['pass']));
         const previousRemote = stub.env.remoteName;
         const originalLocal = stub.localFiles.readFile;
@@ -438,7 +438,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    await testAsync('виртуальный helper сохраняет URI файлового провайдера', async () => {
+    await testAsync('virtual helper keeps the file system provider URI', async () => {
         const originalFind = stub.workspace.findFiles;
         const originalRead = stub.workspace.fs.readFile;
         const schemes: string[] = [];
@@ -466,7 +466,7 @@ export const done = ready.then(async () => {
                 cursorAfter(lines, 'rows.name'));
 
             assert.ok(hover?.contents.value.includes('Client.name'));
-            assert.deepStrictEqual(schemes, ['memfs'], 'URI helper был заменён на file:');
+            assert.deepStrictEqual(schemes, ['memfs'], 'helper URI was replaced with file:');
         } finally {
             stub.workspace.textDocuments = stub.workspace.textDocuments
                 .filter(document => document !== otherFile);
@@ -476,7 +476,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    await testAsync('одноимённые helper-пути разных файловых систем не смешивают кеш', async () => {
+    await testAsync('same helper path on two file systems keeps separate cache', async () => {
         const originalFind = stub.workspace.findFiles;
         const originalRead = stub.workspace.fs.readFile;
         stub.workspace.findFiles = async (include, exclude) =>
@@ -514,7 +514,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    await testAsync('debug-лог показывает время готовности нашего hover', async () => {
+    await testAsync('debug log shows when our hover is ready', async () => {
         const previous = stub.configValues.debug;
         const changed = { affectsConfiguration: (section: string) =>
             section === 'djangoModelNavigator' || section === 'djangoModelNavigator.debug' };
@@ -529,10 +529,10 @@ export const done = ready.then(async () => {
 
             assert.ok(hover?.contents.value.includes('Client.name'));
             assert.ok(stub.outputLines.some(line => /Hover ready in \d+ ms/.test(line)),
-                'нет времени готовности ответа Django Model Navigator');
+                'missing Django Model Navigator response ready time');
             assert.ok(stub.outputLines.some(line =>
                 /Hover stages: search=.+ read=.+ parse=.+ resolve=.+ wait=/.test(line)),
-            'нет разбивки времени hover по этапам');
+            'missing per-stage hover timing breakdown');
             stub.outputLines.length = 0;
             stub.emitters.save.fire(doc(['pass']));
             const imported = ['from shop.utils import get_clients_query',
@@ -543,7 +543,7 @@ export const done = ready.then(async () => {
             edited.replaceText(imported.join('\n') + '\n');
             assert.strictEqual(await pending, undefined);
             assert.ok(!stub.outputLines.some(line => line.includes('Hover ready')),
-                'отменённый hover записал позднюю готовность');
+                'cancelled hover logged a late ready time');
         } finally {
             if (previous === undefined) delete stub.configValues.debug;
             else stub.configValues.debug = previous;
@@ -551,7 +551,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    await testAsync('helper открытый во время чтения использует актуальные несохранённые правки', async () => {
+    await testAsync('helper opened during a read uses current unsaved edits', async () => {
         stub.emitters.save.fire(doc(['pass']));
         const originalRead = stub.workspace.fs.readFile;
         let release: ((value: Buffer) => void) | undefined;
@@ -576,7 +576,7 @@ export const done = ready.then(async () => {
             const hover: stub.Hover = await pending;
 
             assert.ok(hover?.contents.value.includes('Profile.email'),
-                'позднее чтение с диска перекрыло открытый helper');
+                'late disk read overrode the open helper');
         } finally {
             release?.(Buffer.alloc(0));
             stub.workspace.fs.readFile = originalRead;
@@ -586,7 +586,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    await testAsync('первое наведение читает helper без открытия Python-документа', async () => {
+    await testAsync('first hover reads the helper without opening a document', async () => {
         stub.emitters.save.fire(doc(['pass']));
         const originalOpen = stub.workspace.openTextDocument;
         const originalRead = stub.workspace.fs.readFile;
@@ -620,11 +620,11 @@ export const done = ready.then(async () => {
 
             assert.ok(hover?.contents.value.includes('Client.name'));
             assert.strictEqual(opened, 0,
-                'первый hover открывает helper для языковых расширений');
+                'first hover opens the helper for language extensions');
             assert.strictEqual(read, 1);
-            assert.strictEqual(searches, 0, 'первый hover запускает поиск по workspace');
+            assert.strictEqual(searches, 0, 'first hover runs a workspace search');
             await stub.registered.hover[0].provideHover(document, position);
-            assert.strictEqual(read, 1, 'повторный hover заново читает helper');
+            assert.strictEqual(read, 1, 'repeated hover reads the helper again');
         } finally {
             stub.workspace.openTextDocument = originalOpen;
             stub.workspace.fs.readFile = originalRead;
@@ -632,7 +632,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    await testAsync('неоднозначный импорт helper не берёт уже загруженный одноимённый модуль', async () => {
+    await testAsync('ambiguous helper import ignores a loaded same-named module', async () => {
         const files = [...stub.workspaceFiles];
         const shopHelper = new stub.TextDocument(path.join(FIXTURES, 'shop', 'pick.py'),
             'def latest():\n    return Client.objects.first()');
@@ -653,7 +653,7 @@ export const done = ready.then(async () => {
             const guessed = await stub.registered.hover[0]
                 .provideHover(doc(ambiguous), cursorAfter(ambiguous, 'row.name'));
 
-            assert.strictEqual(guessed, null, 'неоднозначный модуль разрешён по загруженному helper');
+            assert.strictEqual(guessed, null, 'ambiguous module resolved from the loaded helper');
         } finally {
             stub.setWorkspaceFiles(files);
             stub.workspace.textDocuments = stub.workspace.textDocuments
@@ -662,7 +662,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    await testAsync('новый helper находится после инвалидирования списка путей', async () => {
+    await testAsync('new helper is found after the path list is invalidated', async () => {
         const files = [...stub.workspaceFiles];
         const helper = new stub.TextDocument(path.join(FIXTURES, 'shop', 'fresh_helpers.py'),
             'def get_entry():\n    return Profile.objects.first()');
@@ -684,7 +684,7 @@ export const done = ready.then(async () => {
             const missing = await stub.registered.hover[0]
                 .provideHover(doc(lines), cursorAfter(lines, 'row.email'));
 
-            assert.strictEqual(missing, null, 'удалённый helper остался в кеше');
+            assert.strictEqual(missing, null, 'deleted helper stayed in the cache');
         } finally {
             stub.setWorkspaceFiles(files);
             stub.workspace.textDocuments = stub.workspace.textDocuments
@@ -693,7 +693,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    await testAsync('ошибка списка Python-путей сохраняет поиск импорта по запросу', async () => {
+    await testAsync('Python path list error keeps on-demand import lookup', async () => {
         const originalFind = stub.workspace.findFiles;
         stub.workspace.findFiles = (include, exclude) => include === '**/*.py'
             ? Promise.reject(new Error('Source catalog unavailable')) : originalFind(include, exclude);
@@ -712,7 +712,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    await testAsync('изменение helper на диске обновляет снимок без открытия документа', async () => {
+    await testAsync('helper change on disk refreshes the snapshot unopened', async () => {
         stub.emitters.save.fire(doc(['pass']));
         const originalRead = stub.workspace.fs.readFile;
         let changed = false;
@@ -741,7 +741,7 @@ export const done = ready.then(async () => {
             stub.emitters.fileChange.fire(stub.Uri.file(UTILS));
             const updated = await labels();
 
-            assert.ok(updated.includes('email'), 'снимок helper остался прежним');
+            assert.ok(updated.includes('email'), 'helper snapshot did not change');
             assert.ok(!updated.includes('name'));
         } finally {
             stub.workspace.fs.readFile = originalRead;
@@ -749,7 +749,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    await testAsync('импортированная функция сохраняет модель последнего элемента кортежа', async () => {
+    await testAsync('imported function keeps the last tuple item model', async () => {
         const lines = [
             'from shop.utils import get_clients_query',
             '(',
@@ -768,10 +768,11 @@ export const done = ready.then(async () => {
         const items: stub.CompletionItem[] = await stub.registered.completion[0]
             .provideCompletionItems(document, cursorAfter(lines, 'item.profile.')) ?? [];
 
-        assert.ok(items.some(item => item.label === 'email'), 'потеряна модель из return импортированной функции');
+        assert.ok(items.some(item => item.label === 'email'),
+            'lost the model from the imported function return');
     });
 
-    await testAsync('распаковка импортированной функции поддерживает псевдоним и пропущенные значения', async () => {
+    await testAsync('imported function unpacking supports alias and skips', async () => {
         const lines = [
             'from shop.utils import get_clients_query as load_rows',
             '_, _, _, _, _, _, _, _, _, _, _, _, _, rows = load_rows(request)',
@@ -783,7 +784,7 @@ export const done = ready.then(async () => {
         assert.ok(items.some(item => item.label === 'name'));
     });
 
-    await testAsync('строковый элемент возвращаемого кортежа не считается моделью', async () => {
+    await testAsync('a string item of a returned tuple is not a model', async () => {
         const lines = [
             'from shop.utils import get_clients_query',
             'domain, _, _, _, _, _, _, _, _, _, _, _, _, rows = get_clients_query(request)',
@@ -795,7 +796,7 @@ export const done = ready.then(async () => {
         assert.deepStrictEqual(items ?? [], []);
     });
 
-    await testAsync('определение и hover продолжают цепочку из импортированной функции', async () => {
+    await testAsync('definition and hover follow an imported function chain', async () => {
         const lines = [
             'from .utils import get_clients_query',
             '_, _, _, _, _, _, _, _, _, _, _, _, _, rows = get_clients_query(request)',
@@ -815,7 +816,7 @@ export const done = ready.then(async () => {
         assert.ok(hover?.contents.value.includes('User.phone'));
     });
 
-    await testAsync('повторный ввод не повторяет поиск неизменившегося импорта', async () => {
+    await testAsync('typing again does not re-search an unchanged import', async () => {
         const originalFind = stub.workspace.findFiles;
         let searches = 0;
 
@@ -837,13 +838,13 @@ export const done = ready.then(async () => {
             const typed = [...lines.slice(0, -1), 'rows.na'];
 
             await stub.registered.completion[0].provideCompletionItems(doc(typed), cursorAfter(typed, 'rows.na'));
-            assert.strictEqual(searches, beforeTyping, 'повторный ввод заново сканирует импортированный модуль');
+            assert.strictEqual(searches, beforeTyping, 'typing again rescans the imported module');
         } finally {
             stub.workspace.findFiles = originalFind;
         }
     });
 
-    await testAsync('правка импортированной функции обновляет тип в неизменённом вызывающем документе', async () => {
+    await testAsync('imported function edit updates the type in its caller', async () => {
         const lines = [
             'from shop.utils import get_clients_query',
             '_, _, _, _, _, _, _, _, _, _, _, _, _, rows = get_clients_query(request)',
@@ -866,7 +867,7 @@ export const done = ready.then(async () => {
         stub.emitters.change.fire({ document: edited });
 
         try {
-            assert.ok((await labels()).includes('email'), 'тип результата остался закешированным');
+            assert.ok((await labels()).includes('email'), 'result type stayed cached');
         } finally {
             stub.workspace.textDocuments = stub.workspace.textDocuments
                 .filter(item => item !== edited);
@@ -874,7 +875,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    test('неизвестное значение не становится моделью из-за совпадения имени', () => {
+    test('an unknown value does not become a model by name match', () => {
         const labels = completionsFor([
             'def get_rows(request):',
             '    client = request.GET.get("client")',
@@ -886,7 +887,7 @@ export const done = ready.then(async () => {
         assert.deepStrictEqual(labels, []);
     });
 
-    test('одна функция сохраняет разные типы переданных queryset', () => {
+    test('one function keeps different types of passed querysets', () => {
         const lines = [
             'def filter_rows(query):',
             '    return query.filter(id__gt=0)',
@@ -899,7 +900,7 @@ export const done = ready.then(async () => {
         assert.ok(completionsFor([...lines.slice(0, -1), 'clients.'], 'clients.').includes('name'));
     });
 
-    await testAsync('повторные провайдеры не перечитывают неизменённый документ целиком', async () => {
+    await testAsync('repeat providers do not reread an unchanged document', async () => {
         const lines = [
             'from shop.utils import get_clients_query',
             '_, _, _, _, _, _, _, _, _, _, _, _, _, rows = get_clients_query(request)',
@@ -929,10 +930,10 @@ export const done = ready.then(async () => {
         assert.ok(items.some(item => item.label === 'name'));
         assert.ok(hover?.contents.value.includes('Client.name'));
         assert.ok(definition);
-        assert.strictEqual(fullReads, 0, 'неизменённый документ повторно читается целиком');
+        assert.strictEqual(fullReads, 0, 'unchanged document is reread in full');
     });
 
-    await testAsync('новая версия того же документа обновляет распознанные функции и переменные', async () => {
+    await testAsync('new document version refreshes functions and variables', async () => {
         const document = doc([
             'def get_entry():',
             '    return Client.objects.first()',
@@ -960,7 +961,7 @@ export const done = ready.then(async () => {
         assert.ok(!updated.includes('name'));
     });
 
-    await testAsync('кеш различает присваивания одной переменной на одной строке', async () => {
+    await testAsync('cache separates same-line assignments of one variable', async () => {
         const code = 'entry = Client.objects.first(); entry.name; entry = Profile.objects.first(); entry.email';
         const document = doc([code]);
         const first: stub.Hover = await stub.registered.hover[0].provideHover(document,
@@ -972,27 +973,27 @@ export const done = ready.then(async () => {
         assert.ok(second?.contents.value.includes('Profile.email'));
     });
 
-    group('lookup-пути');
+    group('lookup paths');
 
-    test('внутри filter предлагаются поля модели', () => {
+    test('model fields are suggested inside filter', () => {
         const lines = ['Review.objects.filter()'];
         const labels = completionsFor(lines, 'Review.objects.filter(');
 
-        assert.ok(labels.includes('text'), `нет поля text: ${labels.join(', ')}`);
+        assert.ok(labels.includes('text'), `missing field text: ${labels.join(', ')}`);
         assert.ok(labels.includes('client'));
-        assert.ok(labels.includes('id'), 'нет неявного поля id');
+        assert.ok(labels.includes('id'), 'missing implicit field id');
     });
 
-    test('после связи предлагаются поля связанной модели', () => {
+    test('related model fields are suggested after a relation', () => {
         const lines = ['Review.objects.filter(client__)'];
         const labels = completionsFor(lines, 'client__');
 
-        assert.ok(labels.includes('name'), `нет поля name: ${labels.join(', ')}`);
-        assert.ok(!labels.includes('text'), 'предложены поля Review вместо Client');
-        assert.ok(labels.includes('isnull'), 'нет lookup для связи');
+        assert.ok(labels.includes('name'), `missing field name: ${labels.join(', ')}`);
+        assert.ok(!labels.includes('text'), 'Review fields suggested instead of Client');
+        assert.ok(labels.includes('isnull'), 'missing lookup for the relation');
     });
 
-    test('обратная связь в filter называется по имени модели, а в prefetch_related — по аксессору', () => {
+    test('filter names a reverse relation by model, prefetch_related by accessor', () => {
         // filter(review_set__...) raises FieldError in Django; prefetch_related uses accessors
         const filter = ['Client.objects.filter(review__text="x")'];
         const wrong = ['Client.objects.filter(review_set__text="x")'];
@@ -1007,14 +1008,14 @@ export const done = ready.then(async () => {
         assert.ok(hoverFor(prefetch, 'prefetch_related("rev')?.includes('review_set'));
     });
 
-    test('после обычного поля предлагаются lookup-ы', () => {
+    test('lookups are suggested after a regular field', () => {
         const labels = completionsFor(['Review.objects.filter(text__)'], 'text__');
 
         assert.ok(labels.includes('icontains'));
         assert.ok(labels.includes('isnull'));
     });
 
-    test('подставляется только текущий сегмент пути', () => {
+    test('only the current path segment is replaced', () => {
         const lines = ['Review.objects.filter(client__na)'];
 
         const items: stub.CompletionItem[] = stub.registered.completion[0].provideCompletionItems(
@@ -1024,17 +1025,17 @@ export const done = ready.then(async () => {
 
         const item = items.find(entry => entry.label === 'name');
 
-        assert.ok(item?.range, 'у элемента нет диапазона замены');
+        assert.ok(item?.range, 'item has no replacement range');
         assert.strictEqual(item.range.start.character, lines[0].indexOf('client__') + 8);
     });
 
-    test('в строке select_related предлагаются связи', () => {
+    test('relations are suggested inside a select_related string', () => {
         const labels = completionsFor(['Review.objects.select_related("")'], 'select_related("');
 
         assert.ok(labels.includes('client'));
     });
 
-    test('переход по сегменту пути ведёт к полю', () => {
+    test('a path segment leads to the field', () => {
         const lines = ['Review.objects.filter(client__name="x")'];
         const locations = definitionsFor(lines, 'client__name');
 
@@ -1044,10 +1045,10 @@ export const done = ready.then(async () => {
             .lineAt(locations[0].range.start.line)
             .text;
 
-        assert.ok(target.includes('name = CharField'), `попали в строку: ${target}`);
+        assert.ok(target.includes('name = CharField'), `landed on line: ${target}`);
     });
 
-    test('переход работает и внутри строки order_by', () => {
+    test('go to definition also works inside an order_by string', () => {
         const lines = ['Review.objects.order_by("-client__name")'];
         const locations = definitionsFor(lines, '-client__name');
 
@@ -1059,28 +1060,28 @@ export const done = ready.then(async () => {
         );
     });
 
-    test('подсказка по сегменту пути показывает владельца поля', () => {
+    test('hover on a path segment shows the field owner', () => {
         const value = hoverFor(['Review.objects.filter(client__name="x")'], 'client__name');
 
-        assert.ok(value?.includes('Client.name'), `подсказка: ${value}`);
+        assert.ok(value?.includes('Client.name'), `hover: ${value}`);
     });
 
-    test('pk разрешается в первичный ключ', () => {
+    test('pk resolves to the primary key', () => {
         const lines = ['Review.objects.filter(pk=1)'];
 
         assert.ok(hoverFor(lines, 'pk')?.includes('AutoField'));
     });
 
-    test('lookup-путь от переменной', () => {
+    test('lookup path from a variable', () => {
         const lines = ['client = Client.objects.first()', 'client.review_set.filter(profile__)'];
         const labels = completionsFor(lines, 'profile__');
 
-        assert.ok(labels.includes('email'), `нет поля email: ${labels.join(', ')}`);
+        assert.ok(labels.includes('email'), `missing field email: ${labels.join(', ')}`);
     });
 
-    group('выбор одноимённой модели');
+    group('choosing between same-named models');
 
-    test('без импорта берётся модель своего приложения', () => {
+    test('without an import the model of the same app is used', () => {
         const document = new stub.TextDocument(
             path.join(FIXTURES, 'blog', 'views.py'),
             ['tag = Tag.objects.first()', 'print(tag.)'].join('\n')
@@ -1093,11 +1094,11 @@ export const done = ready.then(async () => {
 
         const labels = (items ?? []).map((item: stub.CompletionItem) => item.label);
 
-        assert.ok(labels.includes('title'), `ожидались поля blog.Tag: ${labels.join(', ')}`);
-        assert.ok(!labels.includes('slug'), 'взята модель shop.Tag');
+        assert.ok(labels.includes('title'), `expected blog.Tag fields: ${labels.join(', ')}`);
+        assert.ok(!labels.includes('slug'), 'shop.Tag model was used');
     });
 
-    test('импорт указывает на модель другого приложения', () => {
+    test('an import points to a model of another app', () => {
         const document = new stub.TextDocument(
             path.join(FIXTURES, 'blog', 'views.py'),
             [
@@ -1115,17 +1116,17 @@ export const done = ready.then(async () => {
 
         const labels = (items ?? []).map((item: stub.CompletionItem) => item.label);
 
-        assert.ok(labels.includes('slug'), `ожидались поля shop.Tag: ${labels.join(', ')}`);
-        assert.ok(!labels.includes('title'), 'взята модель blog.Tag');
+        assert.ok(labels.includes('slug'), `expected shop.Tag fields: ${labels.join(', ')}`);
+        assert.ok(!labels.includes('title'), 'blog.Tag model was used');
     });
 
-    test('у встроенной модели переход к определению не предлагается', () => {
+    test('built-in models offer no go to definition', () => {
         assert.deepStrictEqual(definitionsFor(['print(Group)'], 'Group'), []);
     });
 
     group('go to definition');
 
-    test('поле связанной модели ведёт в файл этой модели', () => {
+    test('a related model field leads to that model file', () => {
         const lines = ['review = Review.objects.first()', 'print(review.profile.email)'];
         const locations = definitionsFor(lines, 'review.profile.email');
 
@@ -1136,11 +1137,11 @@ export const done = ready.then(async () => {
             .lineAt(locations[0].range.start.line)
             .text;
 
-        assert.ok(target.includes('email = models.EmailField'), `попали в строку: ${target}`);
+        assert.ok(target.includes('email = models.EmailField'), `landed on line: ${target}`);
         assert.strictEqual(locations[0].range.start.character, target.indexOf('email'));
     });
 
-    test('имя модели ведёт к объявлению класса', () => {
+    test('a model name leads to the class declaration', () => {
         const lines = ['client = Client.objects.first()'];
         const locations = definitionsFor(lines, 'Client');
 
@@ -1151,14 +1152,14 @@ export const done = ready.then(async () => {
             .lineAt(locations[0].range.start.line)
             .text;
 
-        assert.ok(target.startsWith('class Client('), `попали в строку: ${target}`);
+        assert.ok(target.startsWith('class Client('), `landed on line: ${target}`);
     });
 
-    test('обратная связь ведёт и к полю, и к модели', () => {
+    test('a reverse relation leads to both the field and the model', () => {
         const lines = ['client = Client.objects.first()', 'print(client.review_set)'];
         const locations = definitionsFor(lines, 'client.review_set');
 
-        assert.ok(locations.length >= 2, 'ожидались поле и модель');
+        assert.ok(locations.length >= 2, 'expected the field and the model');
 
         const targets = locations.map(location =>
             stub.TextDocument.fromFile(location.uri.fsPath).lineAt(location.range.start.line).text
@@ -1168,7 +1169,7 @@ export const done = ready.then(async () => {
         assert.ok(targets.some(text => text.startsWith('class Review(')));
     });
 
-    test('варианты перехода не дублируются', () => {
+    test('definition targets are not duplicated', () => {
         const lines = ['print(Client)'];
         const locations = definitionsFor(lines, 'Client');
 
@@ -1181,7 +1182,7 @@ export const done = ready.then(async () => {
 
     group('hover');
 
-    test('подсказка поля показывает тип и ссылку на объявление', () => {
+    test('field hover shows the type and a link to the declaration', () => {
         const lines = ['review = Review.objects.first()', 'print(review.text)'];
         const value = hoverFor(lines, 'review.text');
 
@@ -1190,7 +1191,7 @@ export const done = ready.then(async () => {
         assert.ok(value?.includes('models.py:'));
     });
 
-    test('подсказка связи показывает поля связанной модели', () => {
+    test('relation hover shows the related model fields', () => {
         const lines = ['review = Review.objects.first()', 'print(review.client)'];
         const value = hoverFor(lines, 'review.client');
 
@@ -1198,7 +1199,7 @@ export const done = ready.then(async () => {
         assert.ok(value?.includes('class Client(models.Model)'));
     });
 
-    test('подсказка обратной связи показывает источник', () => {
+    test('reverse relation hover shows the source', () => {
         const lines = ['client = Client.objects.first()', 'print(client.review_set)'];
         const value = hoverFor(lines, 'client.review_set');
 
@@ -1206,7 +1207,7 @@ export const done = ready.then(async () => {
         assert.ok(value?.includes('Review.client'));
     });
 
-    test('подсказка унаследованного поля сообщает источник', () => {
+    test('inherited field hover names the source', () => {
         const lines = ['client = Client.objects.first()', 'print(client.created_at)'];
         const value = hoverFor(lines, 'client.created_at');
 
@@ -1214,42 +1215,42 @@ export const done = ready.then(async () => {
         assert.ok(value?.includes('TimeStampedModel'));
     });
 
-    test('подсказка модели показывает её полное имя', () => {
+    test('model hover shows its full name', () => {
         const lines = ['print(Client)'];
         const value = hoverFor(lines, 'Client');
 
         assert.ok(value?.includes('shop.models.Client'));
     });
 
-    test('у неизвестного слова подсказки нет', () => {
+    test('an unknown word has no hover', () => {
         assert.strictEqual(hoverFor(['print(unknown_thing)'], 'unknown_thing'), null);
     });
 
     group('find all references');
 
-    test('ссылки на модель включают объявление и поля-связи', () => {
+    test('model references include the declaration and relation fields', () => {
         const locations = referencesFor(['print(Client)'], 'Client');
         const targets = locations.map(lineOf);
 
-        assert.ok(targets.some(text => text.startsWith('class Client(')), 'нет объявления');
+        assert.ok(targets.some(text => text.startsWith('class Client(')), 'missing declaration');
         assert.ok(
             targets.some(text => text.includes('client = models.ForeignKey(Client')),
-            'нет связи из Review'
+            'missing relation from Review'
         );
         assert.ok(
             targets.some(text => text.includes('client = models.ForeignKey(ShopClient')),
-            'нет связи из Post'
+            'missing relation from Post'
         );
     });
 
-    test('ссылки на абстрактную модель включают наследников', () => {
+    test('abstract model references include subclasses', () => {
         const targets = referencesFor(['print(TimeStampedModel)'], 'TimeStampedModel').map(lineOf);
 
         assert.ok(targets.some(text => text.startsWith('class Client(TimeStampedModel)')));
         assert.ok(targets.some(text => text.startsWith('class Review(TimeStampedModel)')));
     });
 
-    test('ссылки не дублируются', () => {
+    test('references are not duplicated', () => {
         const locations = referencesFor(['print(Client)'], 'Client');
 
         const keys = locations.map(
@@ -1259,22 +1260,22 @@ export const done = ready.then(async () => {
         assert.strictEqual(new Set(keys).size, keys.length);
     });
 
-    test('у поля-связи ссылки ведут к связанной модели', () => {
+    test('relation field references lead to the related model', () => {
         const lines = ['review = Review.objects.first()', 'print(review.client)'];
         const targets = referencesFor(lines, 'review.client').map(lineOf);
 
         assert.ok(targets.some(text => text.startsWith('class Client(')));
     });
 
-    group('точность определений полей');
+    group('field definition accuracy');
 
-    test('неизвестный владелец не получает одноимённые поля из всего индекса', () => {
+    test('an unknown owner does not get same-named fields from the whole index', () => {
         const targets = definitionsFor(['unknown_object.name'], 'unknown_object.name');
 
         assert.deepStrictEqual(targets, []);
     });
 
-    test('поле tag не добавляет объявления одноимённых моделей Tag', () => {
+    test('the tag field does not add declarations of Tag models', () => {
         const targets = definitionsFor(['entry = Post.objects.first()', 'entry.tag'], 'entry.tag');
 
         assert.strictEqual(targets.length, 1);
@@ -1282,7 +1283,7 @@ export const done = ready.then(async () => {
         assert.ok(lineOf(targets[0]).includes('tag = models.ForeignKey'));
     });
 
-    await testAsync('посторонние вызовы не расходуют лимит загрузки функции, определяющей модель', async () => {
+    await testAsync('unrelated calls do not exhaust the model function load limit', async () => {
         const noise = path.join(FIXTURES, 'shop', 'unrelated.py');
         const files = [...stub.workspaceFiles];
         const originalOpen = stub.workspace.openTextDocument;
@@ -1314,8 +1315,9 @@ export const done = ready.then(async () => {
             const items: stub.CompletionItem[] = await stub.registered.completion[0]
                 .provideCompletionItems(document, cursorAfter(lines, 'row.')) ?? [];
 
-            assert.ok(items.some(item => item.label === 'name'), 'потеряна модель из get_clients_query');
-            assert.ok(!opened.includes(noise), 'загружен посторонний модуль unrelated');
+            assert.ok(items.some(item => item.label === 'name'),
+                'lost the model from get_clients_query');
+            assert.ok(!opened.includes(noise), 'the unrelated module was loaded');
             const definition = await stub.registered.definition[0]
                 .provideDefinition(document, cursorAfter(lines, 'row.name'));
             const targets: stub.Location[] = Array.isArray(definition) ? definition : [definition];
@@ -1328,16 +1330,16 @@ export const done = ready.then(async () => {
         }
     });
 
-    group('регрессии точности модели');
+    group('model accuracy regressions');
 
-    test('hover и references неизвестного атрибута не ищут модель по имени поля', () => {
+    test('unknown attribute hover and references do not look up a model by field name', () => {
         const lines = ['unknown_object.client'];
 
         assert.strictEqual(hoverFor(lines, 'unknown_object.client'), null);
         assert.deepStrictEqual(referencesFor(lines, 'unknown_object.client'), []);
     });
 
-    test('неизвестный binding затеняет одноимённую модель во всех провайдерах', () => {
+    test('an unknown binding shadows a same-named model in all providers', () => {
         const lines = ['client = request.GET.get("client")', 'print(client)'];
 
         assert.strictEqual(hoverFor(lines, 'print(client'), null);
@@ -1345,14 +1347,14 @@ export const done = ready.then(async () => {
         assert.deepStrictEqual(referencesFor(lines, 'print(client'), []);
     });
 
-    test('references поля использует модель его связи до совпадения имени класса', () => {
+    test('field references use the relation model before a class name match', () => {
         const targets = referencesFor(['entry = Post.objects.first()', 'entry.tag'], 'entry.tag');
 
         assert.ok(targets.some(target => target.uri.fsPath === BLOG && lineOf(target).includes('class Tag')));
         assert.ok(!targets.some(target => target.uri.fsPath === SHOP && lineOf(target).includes('class Tag')));
     });
 
-    test('несуществующий lookup не становится одноимённой моделью', () => {
+    test('a missing lookup does not become a same-named model', () => {
         const lines = ['Client.objects.order_by("tag")'];
 
         assert.deepStrictEqual(definitionsFor(lines, 'order_by("tag'), []);
@@ -1365,7 +1367,7 @@ export const done = ready.then(async () => {
         'snippet = """\nrow = Profile.objects.first()\n"""',
         'snippet = "for row in Profile.objects.all():"'
     ]) {
-        test(`неисполняемый текст не меняет binding: ${noise.split('\n')[0]}`, () => {
+        test(`non-executable text does not change the binding: ${noise.split('\n')[0]}`, () => {
             const lines = ['row = Client.objects.first()', ...noise.split('\n'), 'row.name'];
 
             assert.ok(completionsFor(lines, 'row.').includes('name'));
@@ -1374,7 +1376,7 @@ export const done = ready.then(async () => {
         });
     }
 
-    test('параметр функции не получает binding из соседней функции', () => {
+    test('a function parameter does not get a binding from a sibling function', () => {
         const lines = ['def first():', '    row = Client.objects.first()',
             'def second(row):', '    row.name'];
 
@@ -1383,7 +1385,7 @@ export const done = ready.then(async () => {
         assert.deepStrictEqual(definitionsFor(lines, 'row.name'), []);
     });
 
-    test('присваивание вложенной функции не меняет результат внешней', () => {
+    test('a nested function assignment does not change the outer result', () => {
         const lines = ['def get_entry():', '    row = Client.objects.first()',
             '    def nested():', '        row = Profile.objects.first()',
             '    return row', 'item = get_entry()', 'item.name'];
@@ -1393,7 +1395,7 @@ export const done = ready.then(async () => {
         assert.ok(hoverFor(lines, 'item.name')?.includes('Client.name'));
     });
 
-    test('неизвестный внутренний queryset не заимствует модель внешнего', () => {
+    test('an unknown inner queryset does not borrow the outer model', () => {
         const lines = ['Client.objects.filter(pk__in=unknown_rows.filter(name="x"))'];
 
         assert.deepStrictEqual(completionsFor(lines, 'unknown_rows.filter(name'), []);
@@ -1403,7 +1405,7 @@ export const done = ready.then(async () => {
     });
 
     for (const shortcut of ['get_object_or_404', 'get_list_or_404']) {
-        test(`${shortcut} использует binding queryset вместо совпадения имени модели`, () => {
+        test(`${shortcut} uses the queryset binding over a model name match`, () => {
             const lines = ['client = Profile.objects.all()',
                 `row = ${shortcut}(client, pk=1)`, 'row.email'];
 
@@ -1413,7 +1415,7 @@ export const done = ready.then(async () => {
         });
     }
 
-    test('неразрешённый явный импорт не подменяется моделью текущего приложения', () => {
+    test('an unresolved explicit import is not replaced by a current app model', () => {
         const lines = ['from unindexed.models import Client',
             'row = Client.objects.first()', 'row.name'];
 
@@ -1422,7 +1424,7 @@ export const done = ready.then(async () => {
         assert.deepStrictEqual(definitionsFor(lines, 'row.name'), []);
     });
 
-    test('модель из пакета моделей находится через реэкспорт его __init__', () => {
+    test('a model in a models package is found via its __init__ re-export', () => {
         // Django requires package models to be imported in models/__init__.py
         const lines = ['from accounts.models import Profile',
             'row = Profile.objects.first()', 'row.email'];
@@ -1433,7 +1435,7 @@ export const done = ready.then(async () => {
         assert.strictEqual(definitionsFor(lines, 'from accounts.models import Prof').length, 1);
     });
 
-    test('относительный импорт из пакета моделей своего приложения', () => {
+    test('relative import from the models package of the same app', () => {
         const lines = ['from .models import Profile', 'row = Profile.objects.first()', 'row.email'];
         const document = new stub.TextDocument(path.join(FIXTURES, 'accounts', 'views.py'),
             lines.join('\n'));
@@ -1442,7 +1444,7 @@ export const done = ready.then(async () => {
         assert.ok(hover?.contents.value.includes('Profile.email'));
     });
 
-    test('импорт из пакета без такой модели не подменяется моделью по имени', () => {
+    test('an import from a package without that model is not matched by name', () => {
         const lines = ['from accounts.models import Client',
             'row = Client.objects.first()', 'row.name'];
 
@@ -1451,7 +1453,7 @@ export const done = ready.then(async () => {
 
     for (const expression of ['values("name").first()', 'values_list("name", flat=True).first()',
         'aggregate(total=Count("id"))', 'update(name="x")', 'get_or_create(name="x")']) {
-        test(`результат ${expression} не считается экземпляром модели`, () => {
+        test(`${expression} result is not a model instance`, () => {
             const lines = [`row = Client.objects.${expression}`, 'row.name'];
 
             assert.deepStrictEqual(completionsFor(lines, 'row.'), []);
@@ -1460,7 +1462,7 @@ export const done = ready.then(async () => {
         });
     }
 
-    test('аннотация с двумя моделями не выбирает первую', () => {
+    test('an annotation with two models does not pick the first', () => {
         const lines = ['def choose() -> Client | Profile:',
             '    return Profile.objects.first()', 'row = choose()', 'row.name'];
 
@@ -1469,7 +1471,7 @@ export const done = ready.then(async () => {
         assert.deepStrictEqual(definitionsFor(lines, 'row.name'), []);
     });
 
-    test('Q внутри queryset сохраняет внешний контекст поля', () => {
+    test('Q inside a queryset keeps the outer field context', () => {
         const lines = ['Client.objects.filter(Q(name="x"))'];
 
         assert.ok(completionsFor(lines, 'Q(name').includes('name'));
@@ -1483,7 +1485,7 @@ export const done = ready.then(async () => {
         ['Client.objects.filter(django.db.models.Q(name="x"))', 'Q(name'],
         ['Client.objects.annotate(total=models.Count("name"))', 'Count("name']
     ]) {
-        test(`${line} сохраняет queryset при префиксе модуля`, () => {
+        test(`${line} keeps the queryset with a module prefix`, () => {
             const lines = ['from django.db import models', line];
 
             assert.ok(hoverFor(lines, needle)?.includes('Client.name'));
@@ -1491,7 +1493,7 @@ export const done = ready.then(async () => {
         });
     }
 
-    test('values-queryset в переменной сохраняет модель для следующих lookup', () => {
+    test('a values queryset in a variable keeps the model for later lookups', () => {
         const lines = ['qs = Client.objects.values("name")', 'qs = qs.values("name")',
             'qs.filter(name__icontains="x")', 'row = qs.first()', 'row.name'];
 
@@ -1501,14 +1503,14 @@ export const done = ready.then(async () => {
         assert.strictEqual(hoverFor(lines, 'row.name'), null);
     });
 
-    test('имена полей внутри values сохраняют модель исходного queryset', () => {
+    test('field names inside values keep the source queryset model', () => {
         const lines = ['Client.objects.values("name")'];
 
         assert.ok(completionsFor(lines, 'values("na').includes('name'));
         assert.ok(hoverFor(lines, 'values("name')?.includes('Client.name'));
     });
 
-    test('индекс результата get_or_create выбирает объект или флаг', () => {
+    test('indexing a get_or_create result picks the object or the flag', () => {
         const lines = ['row = Client.objects.get_or_create(name="x")[0]',
             'flag = Client.objects.update_or_create(name="x")[1]', 'first = Client.objects.all()[0]',
             'row.name', 'flag.', 'first.name'];
@@ -1518,14 +1520,14 @@ export const done = ready.then(async () => {
         assert.ok(hoverFor(lines, 'first.name')?.includes('Client.name'));
     });
 
-    test('распаковка get_or_create различает объект и флаг создания', () => {
+    test('get_or_create unpacking tells the object from the created flag', () => {
         const lines = ['row, created = Client.objects.get_or_create(name="x")', 'row.name', 'created.'];
 
         assert.ok(completionsFor(lines, 'row.').includes('name'));
         assert.deepStrictEqual(completionsFor(lines, 'created.'), []);
     });
 
-    test('Optional и строковая аннотация сохраняют единственную модель', () => {
+    test('Optional and string annotations keep a single model', () => {
         for (const annotation of ['Optional[Client]', 'Client | None', '"Client"']) {
             const lines = [`def choose() -> ${annotation}:`, '    return Client.objects.first()',
                 'row = choose()', 'row.name'];
@@ -1534,23 +1536,23 @@ export const done = ready.then(async () => {
         }
     });
 
-    test('канонический импорт встроенной модели сохраняет псевдоним', () => {
+    test('canonical import of a built-in model keeps the alias', () => {
         const lines = ['from django.contrib.auth.models import Group as DjangoGroup',
             'row = DjangoGroup.objects.first()', 'row.name'];
 
         assert.ok(hoverFor(lines, 'row.name')?.includes('Group.name'));
     });
 
-    group('боковая панель');
+    group('sidebar');
 
-    test('манифест объявляет иконку, две панели и кнопки обновления и лога', () => {
+    test('manifest declares the icon, two views and refresh and log buttons', () => {
         const root = path.join(FIXTURES, '..', '..');
         const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
         const containers: { id: string; icon: string }[] =
             manifest.contributes.viewsContainers?.activitybar ?? [];
         const container = containers.find(item => item.id === 'djangoModelNavigator');
 
-        assert.ok(container, 'нет контейнера Django Model Navigator');
+        assert.ok(container, 'missing Django Model Navigator container');
         assert.ok(fs.existsSync(path.join(root, container.icon)));
         const views: { id: string }[] = manifest.contributes.views?.djangoModelNavigator ?? [];
 
@@ -1562,10 +1564,10 @@ export const done = ready.then(async () => {
         assert.ok(buttons.some(button => button.command === 'djangoModelNavigator.showLog'));
     });
 
-    test('дерево разделяет приложения и сохраняет поля и исходные позиции', () => {
+    test('tree groups by app and keeps fields and source positions', () => {
         const tree = stub.registered.trees.get('djangoModelNavigator.models');
 
-        assert.ok(tree, 'дерево моделей не зарегистрировано');
+        assert.ok(tree, 'models tree is not registered');
         const apps = tree.getChildren();
         const shop = apps.find(node => tree.getTreeItem(node).label === 'shop');
 
@@ -1593,7 +1595,7 @@ export const done = ready.then(async () => {
         assert.ok(tree.getTreeItem(implicit).description?.includes('implicit'));
     });
 
-    test('одноимённые модели разных приложений имеют разные идентификаторы', () => {
+    test('same-named models of different apps get different ids', () => {
         const tree = stub.registered.trees.get('djangoModelNavigator.models');
 
         assert.ok(tree);
@@ -1611,10 +1613,10 @@ export const done = ready.then(async () => {
         assert.notStrictEqual(ids[0], ids[1]);
     });
 
-    test('overview показывает состояние, числа моделей и длительность сканирования', () => {
+    test('overview shows the status, model counts and scan duration', () => {
         const overview = stub.registered.trees.get('djangoModelNavigator.overview');
 
-        assert.ok(overview, 'overview не зарегистрирован');
+        assert.ok(overview, 'overview is not registered');
         const rows = overview.getChildren().map(node => overview.getTreeItem(node));
 
         assert.strictEqual(rows.find(row => row.label === 'Index')?.description, 'Ready');
@@ -1624,7 +1626,7 @@ export const done = ready.then(async () => {
         assert.notStrictEqual(rows.find(row => row.label === 'Last update')?.description, 'Not yet');
     });
 
-    test('иконки overview используют единый цвет темы без акцента класса', () => {
+    test('overview icons use one theme color without a class accent', () => {
         const overview = stub.registered.trees.get('djangoModelNavigator.overview');
 
         assert.ok(overview);
@@ -1636,7 +1638,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    test('раскрытие панели читает индекс без поиска и перечитывания файлов', () => {
+    test('expanding the panel reads the index without searching or rereading files', () => {
         const tree = stub.registered.trees.get('djangoModelNavigator.models');
         const overview = stub.registered.trees.get('djangoModelNavigator.overview');
 
@@ -1678,25 +1680,25 @@ export const done = ready.then(async () => {
 
     group('code lens');
 
-    test('над каждой моделью файла появляется лендза', () => {
+    test('a lens appears above every model in the file', () => {
         const document = stub.TextDocument.fromFile(SHOP);
         const lenses: stub.CodeLens[] = stub.registered.codeLens[0].provideCodeLenses(document);
 
         const titles = lenses.map(lens => lens.command?.title ?? '');
 
-        assert.strictEqual(lenses.length, 5, `лендз: ${titles.join(' | ')}`);
+        assert.strictEqual(lenses.length, 5, `lenses: ${titles.join(' | ')}`);
         assert.ok(titles.every(title => title.includes('field(s)')));
 
         const clientLens = lenses.find(
             lens => document.lineAt(lens.range.start.line).text.startsWith('class Client(')
         );
 
-        assert.ok(clientLens?.command, 'нет лендзы над моделью Client');
+        assert.ok(clientLens?.command, 'missing lens above the Client model');
         assert.ok(clientLens.command.title.includes('usage(s)'));
         assert.strictEqual(clientLens.command.command, 'djangoModelNavigator.showReferences');
     });
 
-    test('переключение enableCodeLens сразу обновляет лендзы', () => {
+    test('toggling enableCodeLens refreshes lenses immediately', () => {
         const previous = stub.configValues.enableCodeLens;
         const changed = { affectsConfiguration: (section: string) =>
             section === 'djangoModelNavigator' || section === 'djangoModelNavigator.enableCodeLens' };
@@ -1707,7 +1709,7 @@ export const done = ready.then(async () => {
             stub.configValues.enableCodeLens = false;
             stub.emitters.config.fire(changed);
 
-            assert.strictEqual(refreshed, 1, 'VS Code не узнал об отключении лендз');
+            assert.strictEqual(refreshed, 1, 'VS Code was not notified that lenses were disabled');
             assert.deepStrictEqual(stub.registered.codeLens[0]
                 .provideCodeLenses(stub.TextDocument.fromFile(SHOP)), []);
         } finally {
@@ -1718,7 +1720,7 @@ export const done = ready.then(async () => {
         }
     });
 
-    test('в файле без моделей лендз нет', () => {
+    test('a file without models has no lenses', () => {
         const lenses = stub.registered.codeLens[0].provideCodeLenses(
             doc(['print("no models here")'])
         );
