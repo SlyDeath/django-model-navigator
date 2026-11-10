@@ -1,8 +1,20 @@
+<div align="center">
+
 # Django Model Navigator
 
-Navigate Django models in Visual Studio Code with Go to Definition, hover information,
-field completion, Find All References and CodeLens. Follow relationships across models
-without running Python or loading your Django project.
+**Navigate Django models in Visual Studio Code.**
+
+Follow relationships across models without running Python or loading your Django project.
+
+Go to Definition · Hover · Completion · References · CodeLens
+
+[![VS Marketplace](https://vsmarketplacebadges.dev/version-short/SlyDeath.django-model-navigator.svg)](https://marketplace.visualstudio.com/items?itemName=SlyDeath.django-model-navigator)
+[![Installs](https://vsmarketplacebadges.dev/installs-short/SlyDeath.django-model-navigator.svg)](https://marketplace.visualstudio.com/items?itemName=SlyDeath.django-model-navigator)
+[![CI](https://github.com/SlyDeath/django-model-navigator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SlyDeath/django-model-navigator/actions/workflows/ci.yml)
+[![VS Code](https://img.shields.io/badge/VS%20Code-%3E%3D%201.100-007acc)](https://code.visualstudio.com)
+[![License: MIT](https://img.shields.io/github/license/SlyDeath/django-model-navigator?color=blue)](LICENSE)
+
+</div>
 
 ## Getting started
 
