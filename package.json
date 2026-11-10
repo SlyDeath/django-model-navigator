@@ -2,7 +2,7 @@
   "name": "django-model-navigator",
   "displayName": "Django Model Navigator",
   "description": "Navigation through Django models: Ctrl+Click, tooltips and autocomplete",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "publisher": "SlyDeath",
   "icon": "media/icon.png",
   "galleryBanner": {

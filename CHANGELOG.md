@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1
+
+- The changelog and the rest of the project text are now in English.
+
 ## 1.4.0
 
 ### New
