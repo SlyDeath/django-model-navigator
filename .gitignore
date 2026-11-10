@@ -1,16 +1,46 @@
-# Исключаем билд
-out/**
-
-# Исключаем тесты
-test/**
-tests/**
-*.spec.ts
-*.test.ts
-
-# Прочее
-.vscode/**
-.history/**
-.idea/**
-node_modules/**
+# Build output and dependencies
+out/
+out-test/
+node_modules/
 *.vsix
-package-lock.json
+*.tsbuildinfo
+
+# Test and coverage artifacts
+.vscode-test/
+coverage/
+.nyc_output/
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# macOS and Windows metadata
+.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
+Thumbs.db
+Desktop.ini
+
+# Editor settings, history and temporary files
+.vscode/
+.history/
+*.code-workspace
+.idea/
+*.swp
+*.swo
+*~
+
+# Local environment files, keep shareable examples available
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Temporary files and experiments
+tmp/

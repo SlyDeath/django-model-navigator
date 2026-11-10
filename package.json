@@ -2,62 +2,200 @@
   "name": "django-model-navigator",
   "displayName": "Django Model Navigator",
   "description": "Navigation through Django models: Ctrl+Click, tooltips and autocomplete",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "publisher": "SlyDeath",
   "icon": "media/icon.png",
   "galleryBanner": {
     "color": "#0c4b33",
     "theme": "dark"
   },
+  "keywords": [
+    "django",
+    "python",
+    "models",
+    "navigation",
+    "autocomplete"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SlyDeath/django-model-navigator.git"
+  },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.100.0"
   },
   "categories": [
-    "Extension Packs"
+    "Programming Languages",
+    "Other"
   ],
   "activationEvents": [
-    "onLanguage:python"
+    "onLanguage:python",
+    "onView:djangoModelNavigator.overview",
+    "onView:djangoModelNavigator.models"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "configuration": {
       "title": "Django Model Navigator",
       "properties": {
+        "djangoModelNavigator.debug": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Write a detailed log to the `Django Model Navigator` output channel (scanned files, found models, rescan reasons). Errors are logged regardless of this setting."
+        },
         "djangoModelNavigator.additionalModelPaths": {
           "type": "array",
-          "description": "Additional glob path templates for searching for models (for example, **/db_models.py , **/models/*.py). **/models.py it is always used automatically.",
+          "markdownDescription": "Additional glob patterns for searching for models (for example, `**/db_models.py`, `**/models/*.py`). `**/models.py` is always used automatically.",
           "items": {
             "type": "string"
           },
           "default": []
+        },
+        "djangoModelNavigator.excludePatterns": {
+          "type": "array",
+          "description": "Glob patterns excluded from the model search.",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/__pycache__/**",
+            "**/migrations/**",
+            "**/node_modules/**",
+            "**/.git/**",
+            "**/.venv/**",
+            "**/venv/**",
+            "**/site-packages/**"
+          ]
+        },
+        "djangoModelNavigator.additionalFieldTypes": {
+          "type": "array",
+          "markdownDescription": "Extra field types that do not end with `Field` and are not recognized automatically (for example, `TaggableManager`).",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "djangoModelNavigator.userModel": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Model used for `settings.AUTH_USER_MODEL` references (for example, `accounts.User`). Leave empty to detect it automatically by `AbstractUser` / `AbstractBaseUser` inheritance."
+        },
+        "djangoModelNavigator.includeBuiltinModels": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Add Django's own models (`auth.User`, `Group`, `Permission`, `ContentType`, `Session`, `sites.Site`, `admin.LogEntry`) to the cache. Without them chains through `ForeignKey(User)` break. A project model with the same name always wins."
+        },
+        "djangoModelNavigator.hoverMaxFields": {
+          "type": "integer",
+          "default": 40,
+          "minimum": 1,
+          "description": "Maximum number of fields shown in a tooltip."
+        },
+        "djangoModelNavigator.maxDefinitionResults": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 1,
+          "description": "Maximum number of candidates offered by Go to Definition when the target is ambiguous."
+        },
+        "djangoModelNavigator.enableDefinition": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Go to Definition for models and fields."
+        },
+        "djangoModelNavigator.enableHover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable tooltips for models and fields."
+        },
+        "djangoModelNavigator.enableCompletion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable autocomplete for model fields."
+        },
+        "djangoModelNavigator.enableReferences": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Enable Find All References for models: relation fields pointing at a model and inheritance from it."
+        },
+        "djangoModelNavigator.enableCodeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a CodeLens above each model declaration with field, reverse relation and usage counts."
         }
       }
     },
     "commands": [
       {
         "command": "djangoModelNavigator.updateCache",
-        "title": "Django Model Navigator: Rebuild Model Cache"
+        "title": "Django Model Navigator: Rebuild Model Cache",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "djangoModelNavigator.showLog",
+        "title": "Django Model Navigator: Show Log",
+        "icon": "$(output)"
+      },
+      {
+        "command": "djangoModelNavigator.toggleDebug",
+        "title": "Django Model Navigator: Toggle Debug Logging"
       }
     ],
-    "languages": [
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "djangoModelNavigator",
+          "title": "Django Model Navigator",
+          "icon": "media/activity-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "djangoModelNavigator": [
+        {
+          "id": "djangoModelNavigator.overview",
+          "name": "Overview"
+        },
+        {
+          "id": "djangoModelNavigator.models",
+          "name": "Models"
+        }
+      ]
+    },
+    "viewsWelcome": [
       {
-        "id": "python",
-        "aliases": [
-          "Python"
-        ],
-        "extensions": [
-          ".py"
-        ]
+        "view": "djangoModelNavigator.models",
+        "contents": "No models indexed yet. Open a Django workspace and rebuild the cache.\n[Rebuild Model Cache](command:djangoModelNavigator.updateCache)\nFor split model packages, add `**/models/*.py` to `djangoModelNavigator.additionalModelPaths`."
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "djangoModelNavigator.updateCache",
+          "when": "view == djangoModelNavigator.overview || view == djangoModelNavigator.models",
+          "group": "navigation@1"
+        },
+        {
+          "command": "djangoModelNavigator.showLog",
+          "when": "view == djangoModelNavigator.overview || view == djangoModelNavigator.models",
+          "group": "navigation@2"
+        }
+      ]
+    }
   },
   "scripts": {
-    "vscode:prepublish": "tsc -p ./"
+    "compile": "tsc -p ./",
+    "watch": "tsc -p ./ --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "pretest": "tsc -p ./tsconfig.test.json",
+    "test": "node out-test/test/run.js",
+    "vscode:prepublish": "npm run lint && npm run compile"
   },
   "devDependencies": {
-    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^25.9.1",
     "@types/vscode": "^1.100.0",
-    "path": "^0.12.7",
-    "typescript": "^5.4.5"
+    "eslint": "^9.39.5",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.71.0"
   }
 }
