@@ -1,0 +1,93 @@
+name: Publish
+
+# A release is published only from a version tag such as v1.4.0
+# Marketplace Trusted Publishing exchanges the GitHub OIDC token, so no token secret is stored
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  # contents: write creates the GitHub Release for the tag
+  contents: write
+  id-token: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # The Marketplace policy is bound to this environment
+    environment: marketplace
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - name: Tag matches package.json version
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+
+      - name: Tagged commit is on main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Tag $GITHUB_REF_NAME points to a commit outside main"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Compile
+        run: npm run compile
+
+      - name: Test
+        run: npm test
+
+      - name: Release notes from CHANGELOG
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v heading="## $version" '$0 == heading { found = 1; next }
+            found && /^## / { exit } found' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "CHANGELOG.md has no section for $version"
+            exit 1
+          fi
+
+      - name: Package
+        run: npx --yes @vscode/vsce@4.1.0 package --out "django-model-navigator-${GITHUB_REF_NAME#v}.vsix"
+
+      # --skip-duplicate lets a failed release step be re-run after a successful publish
+      - name: Publish to VS Code Marketplace
+        run: |
+          npx --yes @vscode/vsce@4.1.0 publish --oidc --skip-duplicate \
+            --packagePath "django-model-navigator-${GITHUB_REF_NAME#v}.vsix"
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          vsix="django-model-navigator-${GITHUB_REF_NAME#v}.vsix"
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$vsix" --clobber
+            gh release edit "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" "$vsix" --verify-tag \
+              --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+          fi

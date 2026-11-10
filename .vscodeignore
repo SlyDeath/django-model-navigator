@@ -1,0 +1,36 @@
+# Source and development configuration
+src/**
+*.ts
+tsconfig.json
+tsconfig.test.json
+eslint.config.mjs
+
+# Tests and test output
+test/**
+out-test/**
+*.spec.ts
+*.test.ts
+
+# Keep only user-facing Markdown in the extension package
+*.md
+!README.md
+!CHANGELOG.md
+.*/**
+docs/**
+tmp/**
+
+# Repository metadata, editor state and dependencies
+.vscode/**
+.history/**
+.idea/**
+.vscodeignore
+.gitignore
+.git/**
+.github/**
+node_modules/**
+package-lock.json
+*.vsix
+
+# Local environment and log files
+.env
+*.log
